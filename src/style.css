@@ -450,8 +450,7 @@ select.control { appearance: auto; }
 .about-source { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
 .about-calculator { max-width: 680px; margin: 64px auto 0; padding: 32px 0 0; border-top: 1px solid var(--line); }
 .about-calculator h2 { font-size: 24px; margin: 0 0 20px; }
-.about-calculator > p:not(.fineprint) { color: #74747e; font-size: 14px; }
-.about-calculator .fineprint { margin-bottom: 24px; }
+.about-calculator > p { color: #74747e; font-size: 14px; }
 @media(max-width:680px) {
  .about-intro,.founder-section,.about-institute { grid-template-columns: minmax(0,1fr); gap: 24px; }
  .about .prose { margin-top: 0; }
