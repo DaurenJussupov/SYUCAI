@@ -30,7 +30,7 @@ document.addEventListener('click', e => {
 });
 function shell(content, cls = '') {
  content = content.replaceAll('↗', arrowSvg).replaceAll('✳', sunSvg).replaceAll('⌑', calendarSvg);
- app.innerHTML = `<header class="header"><a href="/" data-link class="brand" aria-label="SYUCAI — главная"><img src="/mark.svg" alt="" width="30" height="38"><span>SYUCAI</span></a><button class="menu-button" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-menu"><span></span><span></span></button><nav id="site-menu" aria-label="Главная навигация" hidden>${link('/', 'Главная')}${link('/about', 'О SYUCAI')}${link('/masters', 'Найти мастера')}${link('/account', 'Кабинет мастера', 'nav-account')}</nav></header><main class="${cls}" id="main">${content}</main><div class="toast" role="status" hidden></div>`;
+ app.innerHTML = `<header class="header"><a href="/" data-link class="brand" aria-label="SYUCAI — главная"><img src="/logo.PNG" alt="SYUCAI" width="64" height="64"></a><button class="menu-button" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-menu"><span></span><span></span></button><nav id="site-menu" aria-label="Главная навигация" hidden>${link('/', 'Главная')}${link('/about', 'О SYUCAI')}${link('/masters', 'Найти мастера')}${link('/account', 'Кабинет мастера', 'nav-account')}</nav></header><main class="${cls}" id="main">${content}</main><div class="toast" role="status" hidden></div>`;
  document.querySelector('.menu-button').onclick = () => setMenu(document.querySelector('.menu-button').getAttribute('aria-expanded') !== 'true');
 }
 
