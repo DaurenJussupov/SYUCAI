@@ -38,6 +38,14 @@ export async function translateBatch(sources,target,{request=fetch,pause=wait}={
 export function validCatalog(catalog,source,locale) {
  return catalog?.sourceHash===source.sourceHash&&catalog.locale===locale&&catalog.status==='ready'&&source.strings.every(s=>typeof catalog.translations?.[s]==='string'&&catalog.translations[s].length>0);
 }
+export function reusableTranslations(catalog,source,locale){
+ if(catalog?.locale!==locale||!catalog.translations)return {};
+ const placeholders=text=>(text.match(/\{\d+\}/g)||[]).sort().join('|');
+ return Object.fromEntries(source.strings.filter(key=>{
+  const value=catalog.translations[key];
+  return typeof value==='string'&&value.length>0&&placeholders(value)===placeholders(key)&&!/<\/?(?:script|iframe|img|svg)\b/i.test(value);
+ }).map(key=>[key,catalog.translations[key]]));
+}
 export async function buildTranslations() {
  const source=JSON.parse(await readFile('src/i18n/source.json','utf8'));
  const output='dist/i18n';await mkdir(output,{recursive:true});
@@ -57,7 +65,7 @@ export async function buildTranslations() {
  const queue=languages.filter(l=>l.code!=='ru'&&!overridden.has(l.code));
  async function worker(){for(;;){const language=queue.shift();if(!language)return;let translations={};try{
    let catalog;
-   try{const r=await fetch(previous+language.code+'.json',{signal:AbortSignal.timeout(10000)});if(r.ok){const old=await r.json();if(validCatalog(old,source,language.code))catalog=old;else if(old.sourceHash===source.sourceHash&&old.locale===language.code)translations=old.translations||{}}}catch{}
+   try{const r=await fetch(previous+language.code+'.json',{signal:AbortSignal.timeout(10000)});if(r.ok){const old=await r.json();if(validCatalog(old,source,language.code))catalog=old;else translations=reusableTranslations(old,source,language.code)}}catch{}
    if(!catalog){for(const group of batches(source.strings.filter(key=>!translations[key]))){Object.assign(translations,await translateBatch(group,language.target));await wait(450)}catalog={locale:language.code,sourceHash:source.sourceHash,status:'ready',translations}}
    if(!validCatalog(catalog,source,language.code))throw Error('Incomplete translation catalog.');
    await writeFile(`${output}/${language.code}.json`,JSON.stringify(catalog));manifest.languages[language.code]={status:'ready'};

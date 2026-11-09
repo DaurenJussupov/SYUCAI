@@ -24,8 +24,8 @@ function walk(node){
  }
 }
 function data(value){if(typeof value==='string')add(value);else if(value&&typeof value==='object')Object.values(value).forEach(data)}
-for(const file of ['src/main.js','src/calculations.js','worker/index.js'])walk(parse(await readFile(file,'utf8'),{sourceType:'module',ecmaVersion:'latest'}));
-for(const file of ['src/birth-data.json','src/name-data.json'])data(JSON.parse(await readFile(file,'utf8')));
+for(const file of ['src/main.js','src/calendar.js','src/calendar-calculations.js','src/calculations.js','worker/index.js'])walk(parse(await readFile(file,'utf8'),{sourceType:'module',ecmaVersion:'latest'}));
+for(const file of ['src/birth-data.json','src/name-data.json','src/calendar-data.json'])data(JSON.parse(await readFile(file,'utf8')));
 for(const city of cities){add(city.name);add(city.country)}
 for(const text of ['Язык сайта','Выбрать язык','Найти язык','Загрузка перевода…','Перевод временно недоступен. Выбранный язык не изменён.','Перевод пока недоступен','Закрыть выбор языка'])add(text);
 // Data-only labels used in API validation and numeric/date context.

@@ -12,10 +12,15 @@ export function calculateName(raw){
  const result=reduce(letters.map(c=>name.MAP[c]));
  return {...result,data:name.ENERGY[result.value],letters:letters.map(c=>[c,name.MAP[c]])};
 }
-export function calculateBirth(value,now=new Date()){
+export function parseBirthDate(value,now=new Date()){
  const m=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);if(!m)throw Error('Введите дату в формате ДД.ММ.ГГГГ');
  const [d,mo,y]=m.slice(1).map(Number), date=new Date(y,mo-1,d);
  if(y<1900||date>now||date.getFullYear()!==y||date.getMonth()!==mo-1||date.getDate()!==d)throw Error('Проверьте дату рождения');
+ return {day:d,month:mo,year:y};
+}
+export function calculateBirth(value,now=new Date()){
+ const {day:d,month:mo,year:y}=parseBirthDate(value,now);
+ const m=[null,String(d).padStart(2,'0'),String(mo).padStart(2,'0'),String(y)];
  const c=reduce(String(d).split('').map(Number)),mission=reduce(m.slice(1).join('').split('').map(Number));
  const today = {day:now.getDate(),month:now.getMonth()+1,year:now.getFullYear()};
  const digits = n => String(n).split('').map(Number);

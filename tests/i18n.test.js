@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {languages,sortedLanguages,languageByCode} from '../src/i18n/languages.js';
-import {batches,decodeBatch,translateBatch,validCatalog} from '../scripts/build-translations.js';
+import {batches,decodeBatch,translateBatch,validCatalog,reusableTranslations} from '../scripts/build-translations.js';
 import source from '../src/i18n/source.json' with {type:'json'};
 import {existsSync} from 'node:fs';
 test('all requested languages occur once, with flags, explicit codes and alphabetical ordering',()=>{
@@ -31,4 +31,11 @@ test('rate limits back off; unsupported locales do not masquerade as translated 
  assert.equal(validCatalog({locale:'en',sourceHash:source.sourceHash,status:'ready',translations},source,'en'),true);
  delete translations[source.strings[0]];assert.equal(validCatalog({locale:'en',sourceHash:source.sourceHash,status:'ready',translations},source,'en'),false);
  assert.equal(validCatalog({locale:'en',sourceHash:'old',status:'ready',translations},source,'en'),false);
+});
+
+test('copy updates reuse existing translations by exact source message without reusing changed placeholders',()=>{
+ const old={locale:'en',sourceHash:'older',translations:{'Мой календарь':'My calendar','Личный год {0}':'Personal year {0}','Общий день {0}':'General day','Удалённый текст':'Deleted text'}};
+ const current={sourceHash:'newer',strings:['Мой календарь','Личный год {0}','Общий день {0}','Новая надпись']};
+ assert.deepEqual(reusableTranslations(old,current,'en'),{'Мой календарь':'My calendar','Личный год {0}':'Personal year {0}'});
+ assert.deepEqual(reusableTranslations(old,current,'fr'),{});
 });
