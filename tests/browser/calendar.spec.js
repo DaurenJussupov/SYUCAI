@@ -17,7 +17,7 @@ test('calendar supports direct entry, leap month, day selection, birth edits and
  await page.locator('[data-date="2024-02-29"]').click();await expect(page.locator('.calendar-selected time')).toHaveAttribute('datetime','2024-02-29');await expect(page.locator('[data-calendar-result] .number')).toHaveText(['9','3']);
  await page.locator('#calendar-birth').fill('01012000');await expect(page.locator('[data-calendar-result] .number')).toHaveText(['5','3']);await expect(page.locator('[data-date="2024-02-29"]')).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Вернуться к сегодня',exact:true}).click();await expect(page.locator('#calendar-year')).toHaveValue('2026');await expect(page.locator('#calendar-month')).toHaveValue('11');await expect(page.locator('.calendar-selected time')).toHaveAttribute('datetime','2026-11-09');
- await page.locator('.calendar-reference summary').click();await expect(page.locator('.calendar-reference-list article')).toHaveCount(9);
+ await expect(page.locator('.calendar-reference')).toHaveCount(0);await expect(page.getByText('Все значения дней от 1 до 9',{exact:true})).toHaveCount(0);
  await page.locator('#calendar-birth').fill('31022000');await expect(page.locator('#calendar-panel')).toBeHidden();await expect(page.locator('#calendar-error')).toContainText('Проверьте дату');
 });
 test('month arrows cross year boundaries and respect original range',async({page})=>{
@@ -43,4 +43,18 @@ test('calendar translates and preserves selected day and form on mobile, includi
  await page.locator('#language-button').click();await page.locator('[data-language=en]').click();await expect(page.locator('h1')).toHaveText('MY CALENDAR');await expect(page.locator('#calendar-month option:checked')).toHaveText('February');await expect(page.locator('#calendar-year')).toHaveValue('2024');await expect(page.locator('[data-calendar-result] .number')).toHaveText(['9','3']);await expect(page.locator('#calendar-birth')).toHaveValue('24.09.1987');
  expect(await page.locator('main').innerText()).not.toMatch(/[А-Яа-яЁё]/);
  await page.locator('#language-button').click();await page.locator('[data-language=ar]').click();await expect(page.locator('html')).toHaveAttribute('dir','rtl');await expect(page.locator('.calendar-selected time')).toHaveAttribute('datetime','2024-02-29');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('calendar links reject missing, partial, impossible and future birth dates before navigation',async({page})=>{
+ await today(page);
+ for(const [value,message] of [['','введите дату рождения'],['31022000','Проверьте дату'],['01012999','Проверьте дату'],['1203','ДД.ММ.ГГГГ']]){
+  await page.goto('/');await page.locator('#name').fill('Anna');if(value)await page.locator('#birth').fill(value);
+  await page.locator('main').getByRole('link',{name:'МОЙ КАЛЕНДАРЬ',exact:true}).click();
+  await expect(page).toHaveURL('http://127.0.0.1:8787/');await expect(page.locator('#birth-error')).toContainText(message);await expect(page.locator('#birth')).toHaveAttribute('aria-invalid','true');await expect(page.locator('#birth')).toBeFocused();await expect(page.locator('#name')).toHaveValue('Anna');
+ }
+ await page.locator('#birth').fill('24091987');await page.locator('main').getByRole('link',{name:'МОЙ КАЛЕНДАРЬ',exact:true}).click();await expect(page).toHaveURL(/\/calendar$/);
+});
+test('menu calendar link without a stored birth date opens the home form with an error',async({page})=>{
+ await page.goto('/about');await page.locator('.menu-button').click();await page.locator('nav').getByRole('link',{name:'МОЙ КАЛЕНДАРЬ',exact:true}).click();
+ await expect(page).toHaveURL('http://127.0.0.1:8787/');await expect(page.locator('#birth-error')).toHaveText('введите дату рождения');await expect(page.locator('#birth')).toBeFocused();
 });

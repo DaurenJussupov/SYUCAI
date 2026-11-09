@@ -56,6 +56,7 @@ export function translateDocument(){
 function toast(message){const el=document.querySelector('.toast');if(!el)return;el.hidden=false;el.textContent=translateText(message);setTimeout(()=>el.hidden=true,7000)}
 export async function setLanguage(code){
  if(!languageByCode(code)||pending)return false;if(code===locale){closeLanguages();return true}
+ document.querySelector('#language-search')?.blur();closeLanguages();
  pending=true;const button=document.querySelector('#language-button');if(button)button.setAttribute('aria-busy','true');
  try{
   if(code!=='ru'&&!catalogs.has(code)){
@@ -67,7 +68,7 @@ export async function setLanguage(code){
   }
   const previous=locale;locale=code;try{localStorage.setItem('syucai.language',code)}catch{}
   document.dispatchEvent(new CustomEvent('syucai:languagechange',{detail:{previous,locale}}));
-  mountLanguagePicker();translateDocument();closeLanguages();return true;
+  mountLanguagePicker();translateDocument();closeLanguages();if(matchMedia('(hover: hover) and (pointer: fine)').matches)document.querySelector('#language-button')?.focus({preventScroll:true});return true;
  }catch{toast('Перевод временно недоступен. Выбранный язык не изменён.');return false}
  finally{pending=false;document.querySelector('#language-button')?.removeAttribute('aria-busy')}
 }
@@ -85,7 +86,7 @@ export function mountLanguagePicker(){
  options();search.oninput=options;
  host.querySelector('#language-button').onclick=()=>{
   const open=panel.hidden;panel.hidden=!open;host.querySelector('#language-button').setAttribute('aria-expanded',String(open));
-  if(open){document.querySelector('#site-menu')?.setAttribute('hidden','');const menu=document.querySelector('.menu-button');menu?.setAttribute('aria-expanded','false');menu?.setAttribute('aria-label',translateText('Открыть меню'));search.focus()}
+  if(open){document.querySelector('#site-menu')?.setAttribute('hidden','');const menu=document.querySelector('.menu-button');menu?.setAttribute('aria-expanded','false');menu?.setAttribute('aria-label',translateText('Открыть меню'));if(matchMedia('(hover: hover) and (pointer: fine)').matches)search.focus()}
  };
  panel.onkeydown=e=>{
   const options=[...list.querySelectorAll('button:not(:disabled)')];const index=options.indexOf(document.activeElement);
@@ -96,7 +97,7 @@ export function mountLanguagePicker(){
  };
  schedule();
 }
-export function closeLanguages(restoreFocus=false){const panel=document.querySelector('#language-panel'),button=document.querySelector('#language-button');if(panel)panel.hidden=true;if(button){button.setAttribute('aria-expanded','false');if(restoreFocus)button.focus()}}
+export function closeLanguages(restoreFocus=false){const panel=document.querySelector('#language-panel'),button=document.querySelector('#language-button');if(panel){if(panel.contains(document.activeElement))document.activeElement?.blur();panel.hidden=true}if(button){button.setAttribute('aria-expanded','false');if(restoreFocus)button.focus({preventScroll:true})}}
 document.addEventListener('click',e=>{if(!e.target.closest('#language-control'))closeLanguages()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('#language-panel')?.hidden===false)closeLanguages(true)});
 export async function initializeTranslations(){

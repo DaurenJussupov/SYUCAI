@@ -2,7 +2,7 @@ import {renderCalendar, leaveCalendar} from './calendar.js';
 import {mountLanguagePicker, initializeTranslations, translateDocument, translateText, translateGeneratedValue, currentLanguage, cityLabel} from './i18n/runtime.js';
 import '@fontsource-variable/manrope';
 import './style.css';
-import {calculateBirth,calculateName} from './calculations.js';
+import {calculateBirth,calculateName,parseBirthDate} from './calculations.js';
 import {cities} from '../shared/cities.js';
 const app=document.querySelector('#app');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -11,7 +11,25 @@ const arrowSvg='<svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke=
 const sunSvg='<svg class="sun-icon" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20 2v36M2 20h36M7 7l26 26M7 33 33 7"/></svg>';
 const calendarSvg='<svg class="inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 11h18"/></svg>';
 async function api(path,options={}){let r;try{r=await fetch('/api'+path,{...options,headers:options.body instanceof FormData?{}:{'Content-Type':'application/json',...options.headers},body:options.body instanceof FormData?options.body:options.body?JSON.stringify(options.body):undefined})}catch{throw Error('Не удалось подключиться. Проверьте соединение и попробуйте ещё раз.')}let data;try{data=await r.json()}catch{throw Error('Сервис недоступен. Попробуйте позже.')}if(!r.ok)throw Error(data.error||'Не удалось выполнить запрос');return data}
-function go(path){history.pushState({},'',path);render();window.scrollTo({top:0,behavior:'instant'})}
+function calendarBirthIsValid(){
+ const field=document.querySelector('#birth')||document.querySelector('#calendar-birth');
+ const value=String(field?field.value:values.date||'').trim();values.date=value;
+ let message;
+ if(!value)message='введите дату рождения';
+ else{try{parseBirthDate(value)}catch(err){message=err.message}}
+ if(!message)return true;
+ if(!field)go('/');
+ const input=document.querySelector('#birth')||document.querySelector('#calendar-birth');
+ const box=document.querySelector('#birth-error')||document.querySelector('#calendar-error');
+ if(input)input.setAttribute('aria-invalid','true');
+ if(box)error(box,message);
+ input?.focus();
+ return false;
+}
+function go(path){
+ if(new URL(path,location.href).pathname==='/calendar'&&!calendarBirthIsValid())return;
+ history.pushState({},'',path);render();window.scrollTo({top:0,behavior:'instant'});
+}
 document.addEventListener('click',e=>{const a=e.target.closest('a[data-link]');if(a&&!e.metaKey&&!e.ctrlKey){e.preventDefault();go(a.getAttribute('href'))}});
 window.addEventListener('popstate',render);
 const link=(path,text,cls='')=>`<a data-link href="${path}" class="${cls}">${text}</a>`;
