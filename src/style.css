@@ -254,7 +254,9 @@ select.control { appearance: auto; }
 .button .master-cta-label { min-width: 0; font-size: 12px; line-height: 1.7; }
 .master-cta-label small { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; color: #c9c9d1; }
 
-.calculate-button { width: 100%; margin-top: 24px; }
+.home-actions { direction: ltr; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
+.home-actions .button { min-width: 0; justify-content: center; gap: 8px; padding-inline: 10px; font-size: 11px; }
+.calculate-button { width: 100%; margin: 0; }
 .input-hint { margin: 12px 0 0; font-size: 11px; text-align: center; color: var(--muted); }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .section-heading h2 { margin: 0; font-size: 17px; font-weight: 550; letter-spacing: -.025em; }
@@ -306,17 +308,16 @@ select.control { appearance: auto; }
 .home { flex-direction: column; gap: 20px; }
 .home .master-discovery { width: min(100%, 388px); margin-top: 0; }
 .home .master-cta { width: 100%; }
-.calendar-entry-button { width: 100%; margin-top: 12px; justify-content: center; font-size: 11px; letter-spacing: .04em; }
+.calendar-entry-button { width: 100%; margin: 0; justify-content: center; font-size: 11px; letter-spacing: .04em; }
 .day-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 28px; border: 1px solid var(--line); border-radius: 14px; margin-top: 28px; padding: 22px 24px; }
 .day-summary > div { display: flex; align-items: center; gap: 16px; }
 .day-summary > div > span { font-size: 12px; color: var(--muted); }
 .day-summary strong { font-size: 28px; font-weight: 500; color: var(--orange); }
 .day-summary .button { margin-inline-start: auto; font-size: 11px; }
-.calendar-form { max-width: 650px; margin-bottom: 30px; }
+.calendar-form { max-width: 388px; margin-bottom: 30px; }
 .calendar-form .form-label { margin-top: 0; }
 .calendar-form-row { display: flex; gap: 12px; }
 .calendar-form-row input { flex: 1; min-width: 0; }
-.calendar-form-row .button { flex-shrink: 0; }
 .calendar-month { max-width: 800px; padding: 24px; margin: 0 auto 32px; border: 1px solid var(--line); border-radius: 16px; }
 .calendar-toolbar { display: grid; grid-template-columns: 44px minmax(0,1fr) 100px 44px; gap: 12px; align-items: center; margin-bottom: 22px; }
 .calendar-toolbar .control { padding: 10px 12px; min-width: 0; }
@@ -365,3 +366,5 @@ select.control { appearance: auto; }
  .calendar-legend .text-button { margin-top: 4px; }
  .calendar-reference-list { grid-template-columns: 1fr; }
 }
+
+:root[dir="rtl"] .home-actions > .button { direction: rtl; }

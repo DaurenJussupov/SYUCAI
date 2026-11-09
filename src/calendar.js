@@ -30,7 +30,7 @@ function renderPanel(){
 }
 export function renderCalendar({shell,birthValue,onBirthChange}){
  active=true;
- shell(`<div class="page-head"><h1>МОЙ КАЛЕНДАРЬ</h1></div><form id="calendar-form" class="calendar-form" novalidate><label class="form-label" for="calendar-birth">Введите дату рождения</label><div class="calendar-form-row"><input id="calendar-birth" class="control" inputmode="numeric" autocomplete="bday" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="${escape(birthValue)}" aria-describedby="calendar-error"><button class="button" type="submit">Открыть календарь <span aria-hidden="true">↗</span></button></div><p id="calendar-error" class="error" role="alert"></p></form><div id="calendar-panel" hidden></div>`, 'page calendar-page');
+ shell(`<div class="page-head"><h1>МОЙ КАЛЕНДАРЬ</h1></div><form id="calendar-form" class="calendar-form" novalidate><label class="form-label" for="calendar-birth">Введите дату рождения</label><div class="calendar-form-row"><input id="calendar-birth" class="control" inputmode="numeric" autocomplete="bday" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="${escape(birthValue)}" aria-describedby="calendar-error"></div><p id="calendar-error" class="error" role="alert"></p></form><div id="calendar-panel" hidden></div>`, 'page calendar-page');
  const input=document.querySelector('#calendar-birth'),error=document.querySelector('#calendar-error');
  function open(showError=true){
   try{parseBirthDate(input.value)}catch(e){if(showError){error.textContent=e.message;input.setAttribute('aria-invalid','true');translateDocument();input.focus()}return false}
@@ -40,7 +40,7 @@ export function renderCalendar({shell,birthValue,onBirthChange}){
  }
  input.oninput=()=>{
   const digits=input.value.replace(/\D/g,'').slice(0,8);input.value=digits.slice(0,2)+(digits.length>2?'.'+digits.slice(2,4):'')+(digits.length>4?'.'+digits.slice(4):'');onBirthChange(input.value);error.textContent='';input.setAttribute('aria-invalid','false');
-  if(digits.length!==8||!open(false))document.querySelector('#calendar-panel').hidden=true;
+  if(digits.length!==8||!open())document.querySelector('#calendar-panel').hidden=true;
  };
  document.querySelector('#calendar-form').onsubmit=e=>{e.preventDefault();open()};
  if(birthValue)open(false);

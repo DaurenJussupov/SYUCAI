@@ -10,7 +10,7 @@ test('separate home calendar button uses birth date and ignores the optional nam
 });
 test('calendar supports direct entry, leap month, day selection, birth edits and return to today',async({page})=>{
  await today(page);await page.goto('/calendar');await expect(page.locator('#calendar-panel')).toBeHidden();
- await page.getByRole('button',{name:'Открыть календарь'}).click();await expect(page.locator('#calendar-error')).toContainText('ДД.ММ.ГГГГ');
+ await expect(page.getByRole('button',{name:'Открыть календарь'})).toHaveCount(0);await page.locator('#calendar-birth').press('Enter');await expect(page.locator('#calendar-error')).toContainText('ДД.ММ.ГГГГ');
  await page.locator('#calendar-birth').fill('24091987');await expect(page.locator('#calendar-panel')).toBeVisible();
  await page.locator('#calendar-year').selectOption('2024');await page.locator('#calendar-month').selectOption('2');await expect(page.locator('.calendar-cell')).toHaveCount(29);
  await page.locator('[data-date="2024-02-01"]').click();await expect(page.locator('[data-calendar-result] .number')).toHaveText(['8','2']);
@@ -18,7 +18,7 @@ test('calendar supports direct entry, leap month, day selection, birth edits and
  await page.locator('#calendar-birth').fill('01012000');await expect(page.locator('[data-calendar-result] .number')).toHaveText(['5','3']);await expect(page.locator('[data-date="2024-02-29"]')).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Вернуться к сегодня',exact:true}).click();await expect(page.locator('#calendar-year')).toHaveValue('2026');await expect(page.locator('#calendar-month')).toHaveValue('11');await expect(page.locator('.calendar-selected time')).toHaveAttribute('datetime','2026-11-09');
  await page.locator('.calendar-reference summary').click();await expect(page.locator('.calendar-reference-list article')).toHaveCount(9);
- await page.locator('#calendar-birth').fill('31022000');await expect(page.locator('#calendar-panel')).toBeHidden();await page.getByRole('button',{name:'Открыть календарь'}).click();await expect(page.locator('#calendar-error')).toContainText('Проверьте дату');
+ await page.locator('#calendar-birth').fill('31022000');await expect(page.locator('#calendar-panel')).toBeHidden();await expect(page.locator('#calendar-error')).toContainText('Проверьте дату');
 });
 test('month arrows cross year boundaries and respect original range',async({page})=>{
  await today(page);await page.goto('/calendar');await page.locator('#calendar-birth').fill('24091987');
