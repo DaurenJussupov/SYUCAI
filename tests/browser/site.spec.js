@@ -1,0 +1,40 @@
+import {test,expect} from '@playwright/test';
+const origin='http://127.0.0.1:8787';
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=','base64');
+test('minimal home, Latin validation, exact calculations and responsive navigation',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');await expect(page.locator('main input')).toHaveCount(2);
+ await page.locator('#name').fill('Анна');await expect(page.locator('#name-error')).toContainText('Use Latin letters');
+ await page.locator('#birth').fill('24091987');await page.locator('#name').fill('Anna');await expect(page).toHaveURL(/\/results$/);
+ await expect(page.locator('.number')).toHaveText(['6','4','3']);
+ await page.getByRole('link',{name:/Найти мастера SYUCAI/}).click();await page.locator('#search-city').fill('Кызылорда, Казахстан');await page.getByRole('button',{name:'Найти мастера'}).click();await expect(page.locator('#master-list')).toContainText('пока нет опубликованных анкет');
+ await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('link',{name:'О SYUCAI',exact:true}).click();await expect(page.getByRole('heading',{name:'Жанат Кожамжаров'})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
+});
+test('real D1/R2 registration, private documents, moderation, reviews, contact and logout',async({page,browser})=>{
+ const email=`master-${Date.now()}@example.com`,password='TestPassword123!';
+ await page.goto('/account');await page.locator('#email').fill(email);await page.locator('#password').fill(password);await page.locator('.consent input').check();await page.getByRole('button',{name:'Создать аккаунт'}).click();await expect(page.getByRole('heading',{name:'Профиль мастера.'})).toBeVisible();
+ await page.locator('#photo-file').setInputFiles({name:'portrait.png',mimeType:'image/png',buffer:png});await expect(page.locator('#upload-status')).toContainText('Файл загружен');
+ await page.locator('#document-file').setInputFiles({name:'diploma.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4\nTest diploma\n%%EOF')});await expect(page.locator('#file-list')).toContainText('diploma.pdf');
+ await page.locator('[name=name]').fill('Тестовый мастер');await page.locator('#profile-city').fill('Алматы, Казахстан');await page.locator('[name=phone]').fill('+77001234567');await page.locator('[name=credentials]').fill('Тестовая квалификация');await page.locator('[name=bio]').fill('Тестовая анкета для автоматической проверки сайта. Это не настоящий мастер и не публичная рекомендация. Проверяем загрузку документов и публикацию.');await page.locator('.consent input').check();await page.getByRole('button',{name:'Сохранить и отправить на проверку'}).click();await expect(page.locator('#profile-status')).toContainText('Анкета сохранена');
+ const me=await (await page.request.get('/api/me')).json(),id=me.user.id,doc=me.files.find(f=>f.kind==='document').id;
+ const outsider=await browser.newContext();const other=await outsider.newPage();
+ const privateResponse=await outsider.request.get(origin+'/api/files/'+doc);expect(privateResponse.status()).toBe(401);
+ const before=await (await page.request.get('/api/masters?city=almaty')).json();expect(before.masters.some(m=>m.id===id)).toBe(false);
+ const cross=await page.request.put('/api/profile',{headers:{Origin:'https://evil.example'},data:{}});expect(cross.status()).toBe(403);
+ await other.goto(origin+'/admin');await other.locator('#admin-token').fill('incorrect-key');await other.getByRole('button',{name:'Открыть анкеты'}).click();await expect(other.locator('#admin-error')).toContainText('Нет доступа');
+ await other.locator('#admin-token').fill('local-test-admin');await other.getByRole('button',{name:'Открыть анкеты'}).click();const card=other.locator('.admin-profile').filter({hasText:email});await expect(card).toBeVisible();
+ const downloadPromise=other.waitForEvent('download');await card.getByRole('button',{name:/Документ: diploma.pdf/}).click();const download=await downloadPromise;expect(download.suggestedFilename()).toBe('diploma.pdf');
+ await card.getByRole('button',{name:'Опубликовать',exact:true}).click();await expect(card).toContainText('Опубликовано');
+ const after=await (await page.request.get('/api/masters?city=almaty')).json();expect(after.masters[0].id).toBe(id);expect(after.masters[0].distance).toBe(0);
+ expect((await outsider.request.get(origin+'/api/files/'+doc)).status()).toBe(401);
+ expect((await page.request.post(`/api/masters/${id}/reviews`,{headers:{Origin:origin},data:{author:'Мастер',rating:5,text:'Сам себе отзыв оставлять нельзя'}})).status()).toBe(400);
+ await other.goto(origin+'/account');await other.locator('#email').fill(`review-${Date.now()}@example.com`);await other.locator('#password').fill(password);await other.locator('.consent input').check();await other.getByRole('button',{name:'Создать аккаунт'}).click();await expect(other.locator('#profile-form')).toBeVisible();
+ await other.goto(origin+'/masters/'+id);await other.locator('summary').filter({hasText:'Оставить отзыв'}).click();await other.locator('[name=author]').fill('Посетитель');await other.locator('[name=text]').fill('Тестовый отзыв о консультации для проверки функций сайта.');await other.getByRole('button',{name:'Опубликовать отзыв'}).click();await expect(other.locator('.review')).toContainText('Тестовый отзыв');await expect(other.locator('.profile-copy > .rating')).toContainText('5.0');
+ await other.getByRole('button',{name:'Связаться с мастером'}).click();await other.locator('#contact-city').fill('Алматы, Казахстан');await other.locator('#contact-city').dispatchEvent('input');await expect(other.locator('#message')).toHaveValue('Добрый день, беспокою Вас с сайта syucai.me, я из г. Алматы хочу пройти консультацию по SYUCAI');
+ let target='';await other.route('https://wa.me/**',async route=>{target=route.request().url();await route.abort()});await other.getByRole('button',{name:'Перейти в WhatsApp'}).click();await expect.poll(()=>target).toContain('https://wa.me/77001234567?text=');expect(decodeURIComponent(target)).toContain('Алматы');
+ await page.getByRole('button',{name:'Выйти',exact:false}).click();await expect(page.locator('#auth-form')).toBeVisible();expect((await (await page.request.get('/api/me')).json()).user).toBeNull();
+ // Remove the test master from discovery; only local emulator data is used.
+ await page.request.post('/api/admin/moderate',{headers:{Origin:origin,Authorization:'Bearer local-test-admin'},data:{id,status:'rejected'}});
+ await outsider.close();
+});

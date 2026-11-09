@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Число имени и названия</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; padding: 24px 12px; background: #f6f1e9; }
+
+  /* ===== Всё, что ниже, изолировано внутри .ni-widget ===== */
+  .ni-widget {
+    --ni-bg: #fffaf2;
+    --ni-ink: #2b2233;
+    --ni-muted: #7a6f80;
+    --ni-accent: #8a5a2b;
+    --ni-accent-2: #b8864b;
+    --ni-line: #eadfce;
+    --ni-plus: #2f7a52;
+    --ni-minus: #a8423a;
+    box-sizing: border-box;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 36px 28px 32px;
+    background: var(--ni-bg);
+    border: 1px solid var(--ni-line);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(60, 40, 20, .08);
+    font-family: 'Manrope', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color: var(--ni-ink);
+    line-height: 1.55;
+  }
+  .ni-widget *, .ni-widget *::before, .ni-widget *::after { box-sizing: border-box; }
+
+  .ni-head { text-align: center; margin-bottom: 26px; }
+  .ni-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 700; font-size: 34px; line-height: 1.15;
+    margin: 0 0 8px; color: var(--ni-ink);
+  }
+  .ni-sub { margin: 0 auto; color: var(--ni-muted); font-size: 15px; max-width: 520px; }
+
+  .ni-form { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 0 auto 6px; max-width: 560px; }
+  .ni-input {
+    flex: 1 1 280px;
+    font: 600 19px/1.2 'Manrope', sans-serif;
+    text-align: center; padding: 15px 16px;
+    border: 1.5px solid var(--ni-line); border-radius: 12px;
+    background: #fff; color: var(--ni-ink);
+    outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  .ni-input::placeholder { color: #c4b8c9; font-weight: 500; }
+  .ni-input:focus { border-color: var(--ni-accent-2); box-shadow: 0 0 0 4px rgba(184,134,75,.15); }
+  .ni-btn {
+    flex: 0 0 auto; font: 600 16px/1 'Manrope', sans-serif;
+    padding: 15px 26px; border: 0; border-radius: 12px; cursor: pointer;
+    color: #fff; background: linear-gradient(135deg, var(--ni-accent), var(--ni-accent-2));
+    transition: transform .15s, box-shadow .2s;
+  }
+  .ni-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(138,90,43,.3); }
+  .ni-error { min-height: 22px; text-align: center; color: var(--ni-minus); font-size: 14px; margin: 4px 0 0; }
+
+  .ni-results { display: none; margin-top: 14px; }
+  .ni-results.is-visible { display: block; animation: ni-fade .45s ease; }
+  @keyframes ni-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .ni-card { background: #fff; border: 1px solid var(--ni-line); border-radius: 16px; padding: 24px 24px 22px; }
+  .ni-card-head { display: grid; grid-template-columns: 92px 1fr; gap: 18px; align-items: center; }
+  .ni-num {
+    width: 92px; height: 92px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 56px; line-height: 1;
+    color: var(--ni-accent);
+    background: radial-gradient(circle at 30% 30%, #fff6e8, #f3e2c8);
+    border: 1.5px solid #e6cfa9;
+  }
+  .ni-label { text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 600; color: var(--ni-accent-2); margin: 2px 0 2px; }
+  .ni-name { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 26px; line-height: 1.2; margin: 0 0 6px; }
+  .ni-for { font-size: 14px; color: var(--ni-muted); margin: 0; word-break: break-word; }
+
+  .ni-letters { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 8px; }
+  .ni-chip {
+    display: inline-flex; flex-direction: column; align-items: center; min-width: 34px;
+    padding: 5px 6px 4px; border-radius: 8px; background: #faf5ee; border: 1px solid var(--ni-line);
+  }
+  .ni-chip b { font-size: 15px; font-weight: 600; line-height: 1.1; }
+  .ni-chip span { font-size: 12px; color: var(--ni-accent); font-weight: 600; }
+  .ni-chip--space { background: transparent; border-color: transparent; min-width: 10px; }
+  .ni-calc { display: inline-block; font-size: 13px; color: var(--ni-muted); background: #faf5ee; border-radius: 8px; padding: 4px 10px; }
+
+  .ni-keys { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 4px; }
+  .ni-key { font-size: 13px; padding: 4px 11px; border-radius: 999px; background: #f5ead9; color: var(--ni-accent); font-weight: 600; }
+
+  .ni-summary { margin: 14px 0 4px; padding: 14px 16px; border-radius: 12px; background: #fcf7ef; border-left: 3px solid var(--ni-accent-2); font-size: 15.5px; }
+  .ni-classic { margin: 12px 0 4px; padding: 14px 16px; border-radius: 12px; background: #f7f3fa; border-left: 3px solid #9b85b0; }
+  .ni-classic-title { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 19px; margin: 0 0 4px; color: #6e5689; }
+  .ni-classic p { margin: 0 0 5px; font-size: 15.5px; }
+  .ni-classic p:last-child { margin-bottom: 0; }
+  .ni-cl-tag { font-weight: 600; color: #6e5689; }
+  .ni-cl-tag--plus { color: var(--ni-plus); }
+  .ni-cl-tag--minus { color: var(--ni-minus); }
+  .ni-sec { padding: 14px 0 0; border-top: 1px dashed var(--ni-line); margin-top: 14px; }
+  .ni-sec:first-child { border-top: 0; margin-top: 8px; }
+  .ni-sec-title { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 20px; line-height: 1.25; margin: 0 0 4px; color: var(--ni-accent); }
+  .ni-sec p { margin: 0; font-size: 15.5px; }
+  .ni-sec--plus .ni-sec-title { color: var(--ni-plus); }
+  .ni-sec--minus .ni-sec-title { color: var(--ni-minus); }
+
+  .ni-table-toggle { display: block; margin: 22px auto 0; background: none; border: 0; color: var(--ni-accent); font: 600 14px 'Manrope', sans-serif; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .ni-table-wrap { display: none; margin-top: 12px; overflow-x: auto; }
+  .ni-table-wrap.is-open { display: block; }
+  .ni-table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: center; background: #fff; border-radius: 12px; overflow: hidden; }
+  .ni-table th, .ni-table td { border: 1px solid var(--ni-line); padding: 6px 4px; }
+  .ni-table th { background: #f5ead9; color: var(--ni-accent); font-weight: 700; }
+  .ni-table td { font-weight: 600; }
+  .ni-translit { display: none; font-size: 13.5px; color: var(--ni-muted); margin: 16px 0 0; }
+  .ni-translit b { color: var(--ni-ink); letter-spacing: .04em; }
+  .ni-badge { display: inline-block; margin-left: 2px; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; letter-spacing: .06em; }
+  .ni-badge--good { background: #e3f1e8; color: var(--ni-plus); }
+  .ni-badge--hard { background: #f6e4e1; color: var(--ni-minus); }
+
+  .ni-note { text-align: center; font-size: 12.5px; color: var(--ni-muted); margin: 18px 0 0; }
+
+  @media (max-width: 520px) {
+    .ni-widget { padding: 26px 16px 22px; border-radius: 16px; }
+    .ni-title { font-size: 28px; }
+    .ni-card { padding: 20px 16px; }
+    .ni-card-head { grid-template-columns: 1fr; text-align: center; }
+    .ni-num { margin: 0 auto; width: 80px; height: 80px; font-size: 48px; }
+    .ni-btn { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ni-widget" id="ni-widget">
+  <div class="ni-head">
+    <h2 class="ni-title">Число имени и названия</h2>
+    <p class="ni-sub">Числовая наука о психологии SYUCAI. Введите имя, фамилию или название компании, и калькулятор покажет, какая энергия стоит за словом.</p>
+  </div>
+
+  <form class="ni-form" id="ni-form" novalidate>
+    <input class="ni-input" id="ni-text" type="text" autocomplete="off" maxlength="80"
+           placeholder="Например: Анна или Global Skills" aria-label="Имя или название">
+    <button class="ni-btn" id="ni-btn" type="button">Рассчитать</button>
+  </form>
+  <p class="ni-error" id="ni-error" role="alert"></p>
+
+  <div class="ni-results" id="ni-results" aria-live="polite">
+    <div class="ni-card">
+      <div class="ni-card-head">
+        <div class="ni-num" id="ni-num">–</div>
+        <div>
+          <div class="ni-label">Число имени · <span class="ni-badge" id="ni-badge"></span></div>
+          <h3 class="ni-name" id="ni-name"></h3>
+          <p class="ni-for" id="ni-for"></p>
+        </div>
+      </div>
+      <p class="ni-translit" id="ni-translit"></p>
+      <div class="ni-letters" id="ni-letters"></div>
+      <span class="ni-calc" id="ni-calc"></span>
+      <div class="ni-keys" id="ni-keys"></div>
+      <div class="ni-summary" id="ni-summary"></div>
+      <div class="ni-classic"><h4 class="ni-classic-title" id="ni-classic-title"></h4><div id="ni-classic"></div></div>
+      <div id="ni-sections"></div>
+    </div>
+  </div>
+
+  <button class="ni-table-toggle" id="ni-table-toggle" type="button">Показать таблицу букв</button>
+  <div class="ni-table-wrap" id="ni-table-wrap">
+    <table class="ni-table">
+      <thead><tr><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr></thead>
+      <tbody><tr><td>A I J Q Y</td><td>B K R</td><td>C L S G</td><td>D M T</td><td>E H N X</td><td>U V W</td><td>O Z</td><td>F P</td></tr></tbody>
+    </table>
+  </div>
+
+  <p class="ni-note">Расчёт по системе SYUCAI: буквы латиницы переводятся в цифры от 1 до 8, сумма сводится к числу от 1 до 9. Имена на кириллице автоматически переводятся в латиницу, цифры в названии тоже учитываются.</p>
+</div>
+
+<script>
+(function () {
+  // Таблица SYUCAI: буквы латиницы → цифры 1–8
+  var MAP = {};
+  function add(n, letters) { letters.split('').forEach(function (ch) { MAP[ch] = n; }); }
+  add(1, 'AIJQY'); add(2, 'BKR'); add(3, 'CLSG'); add(4, 'DMT');
+  add(5, 'EHNX'); add(6, 'UVW'); add(7, 'OZ'); add(8, 'FP');
+  for (var d = 1; d <= 9; d++) MAP[String(d)] = d;
+  MAP['0'] = 0;
+
+  // Кириллица переводится в латиницу так, как имена обычно пишут в паспорте
+  var TRANSLIT = {
+    'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Е':'E','Ё':'YO','Ж':'ZH','З':'Z','И':'I','Й':'Y',
+    'К':'K','Л':'L','М':'M','Н':'N','О':'O','П':'P','Р':'R','С':'S','Т':'T','У':'U','Ф':'F',
+    'Х':'KH','Ц':'TS','Ч':'CH','Ш':'SH','Щ':'SHCH','Ъ':'','Ы':'Y','Ь':'','Э':'E','Ю':'YU','Я':'YA',
+    'Ә':'A','Ғ':'G','Қ':'K','Ң':'N','Ө':'O','Ұ':'U','Ү':'U','Һ':'H','І':'I'
+  };
+  function toLatin(str) {
+    return str.toUpperCase().split('').map(function (ch) {
+      return TRANSLIT.hasOwnProperty(ch) ? TRANSLIT[ch] : ch;
+    }).join('');
+  }
+
+  var ENERGY = {
+    1: { planet: 'Солнце', good: true, title: 'Солнце: популярность',
+         keys: ['популярность', 'известность', 'лидерство', 'признание'],
+         summary: 'Главное значение единицы в SYUCAI — популярность. Имя или название с энергией Солнца притягивает внимание и делает своего носителя заметным: его запоминают, о нём говорят, к нему тянутся.',
+         classic: {"planet": "Солнце", "days": "1, 10, 19, 28", "plus": "лидеры, самостоятельные, авторитетные, инициативные, хорошие управленцы.", "minus": "эгоизм, деспотизм, упрямство, агрессивность, склонность к конфликтам.", "mission": "Власть: лидерство, управление, ответственность за других."},
+         sections: [
+           ['Для человека', 'Имя помогает быть на виду и получать признание. Такого человека замечают в любом коллективе, ему проще стать лидером, публичной фигурой, лицом проекта. Чтобы популярность не обернулась гордыней, важно сохранять уважение к людям.'],
+           ['Для бренда и компании', 'Хорошая энергия для компаний, которым нужна узнаваемость и сильный личный бренд основателя. Название быстро становится известным и воспринимается как «главный игрок» в своей нише.'],
+           ['Подходящие сферы', 'Личные бренды экспертов, медиа, консалтинг, премиальные услуги, управление, государственные и крупные проекты, ювелирное дело.'],
+           ['Сильные стороны', 'Узнаваемость, авторитет, сарафанное радио, лёгкость в привлечении партнёров и клиентов.', 'plus'],
+           ['Риски', 'Высокомерие и ожидание, что популярность будет всегда. Если за известным именем нет результата, репутация страдает быстро.', 'minus'],
+           ['Совет', 'Подкрепляйте известность делом и заботой о людях, тогда популярность станет устойчивой.']
+         ] },
+    2: { planet: 'Луна', good: true, title: 'Луна: личное благополучие',
+         keys: ['благополучие', 'семья', 'брак', 'забота'],
+         summary: 'В SYUCAI двойка означает личное благополучие и удачу в замужестве. Энергия Луны приносит спокойствие, тепло в доме и гармоничные отношения.',
+         classic: {"planet": "Луна", "days": "2, 11, 20, 29", "plus": "дипломаты, миротворцы, гибкие и вдумчивые люди, хорошие исполнители, понимают других, тянутся к эзотерике.", "minus": "сомнения, депрессивность, поиск опоры в других, слишком глубокое погружение в чужие проблемы.", "mission": "Творчество и психология: дипломатия, эмпатия, партнёрство, умение объединять людей."},
+         sections: [
+           ['Для человека', 'Имя поддерживает личное счастье: крепкую семью, заботливого партнёра, уют и достаток в доме. Для женщин это число считают особенно удачным для замужества. Человек с таким именем мягкий, чуткий, умеет заботиться и располагать к себе.'],
+           ['Для бренда и компании', 'Подходит компаниям, которые работают для семьи и дома и строят тёплые отношения с клиентами. Название звучит дружелюбно и вызывает доверие.'],
+           ['Подходящие сферы', 'Товары для мам и детей, свадебные услуги, семейная психология, медицина и уход, сервис и гостеприимство, кафе и доставка еды, товары для дома.'],
+           ['Сильные стороны', 'Доверие и лояльность клиентов, тёплая репутация, удача в партнёрстве.', 'plus'],
+           ['Риски', 'Зависимость от настроения и чужого мнения, непостоянство. В бизнесе продажи могут сильно зависеть от сезона.', 'minus'],
+           ['Совет', 'Берегите отношения: с близкими, партнёрами и клиентами. В них сила этого числа.']
+         ] },
+    3: { planet: 'Юпитер', good: true, title: 'Юпитер: солидарность',
+         keys: ['солидарность', 'единомышленники', 'знание', 'доверие'],
+         summary: 'Главное значение тройки в SYUCAI — солидарность. Энергия Юпитера объединяет людей вокруг общих ценностей и знаний, поэтому вокруг такого имени или названия складывается команда и круг единомышленников.',
+         classic: {"planet": "Юпитер", "days": "3, 12, 21, 30", "plus": "наставники и аналитики, «гуру» и «люди-инструкции»: целеустремлённые, систематичные, стремятся к знаниям и порядку.", "minus": "поверхностность, категоричность, стремление всех поучать, лень, азарт.", "mission": "Анализ: систематизация, порядок, стратегия, справедливое руководство."},
+         sections: [
+           ['Для человека', 'Имя притягивает поддержку: друзей, учителей, коллег, которые разделяют взгляды. Такой человек умеет объединять, наставлять и вести за собой через знания и принципы. Важно не превращать наставничество в поучения.'],
+           ['Для бренда и компании', 'Сильная энергия для сообществ, школ, ассоциаций и компаний, которые держатся на общих ценностях. Название вызывает доверие и желание быть частью этого.'],
+           ['Подходящие сферы', 'Образование и онлайн-школы, клубы и сообщества, консалтинг, юридические и финансовые услуги, общественные и благотворительные организации, издательства.'],
+           ['Сильные стороны', 'Сплочённая команда, верные клиенты и партнёры, репутация, основанная на доверии.', 'plus'],
+           ['Риски', 'Категоричность и закрытость для тех, кто думает иначе. Бренд может звучать слишком серьёзно.', 'minus'],
+           ['Совет', 'Объединяйте людей вокруг понятных ценностей и делитесь знаниями открыто.']
+         ] },
+    4: { planet: 'Раху', good: false, title: 'Раху: отчуждённость',
+         keys: ['отчуждённость', 'необычность', 'дистанция', 'нестабильность'],
+         summary: 'В SYUCAI четвёрка означает отчуждённость. Энергия Раху выделяет и одновременно отделяет: имя или название звучит необычно и заметно, но создаёт дистанцию с людьми.',
+         classic: {"planet": "Раху", "days": "4, 13, 22, 31", "plus": "новаторы и революционеры с креативным мышлением и сильной интуицией, борцы за справедливость.", "minus": "упрямство, гиперконтроль, иллюзии, апатия, постоянное недовольство, разрушительные склонности.", "mission": "Передача тайных знаний: поиск смыслов, работа с информацией, инновации."},
+         sections: [
+           ['Для человека', 'Человек с таким именем часто чувствует себя «не таким, как все», ему труднее найти своих людей и почувствовать опору. Зато у него сильная интуиция, оригинальное мышление и интерес к новому. Жизнь может приносить резкие повороты.'],
+           ['Для бренда и компании', 'Название привлекает внимание, но аудитории бывает трудно ему довериться и почувствовать его «своим». Подходит проектам, которым важна нестандартность, с условием, что вы активно работаете над близостью с клиентом.'],
+           ['Подходящие сферы', 'IT и технологии, искусственный интеллект, стартапы, медиа и кино, работа с зарубежными рынками, необычные форматы услуг.'],
+           ['Сильные стороны', 'Заметность, оригинальность, способность занять новую нишу раньше других.', 'plus'],
+           ['Риски', 'Отчуждение от людей и клиентов, недоверие, нестабильность, резкие взлёты и спады.', 'minus'],
+           ['Совет', 'Если выбираете название, по возможности подберите вариант с более благоприятным числом. Если имя уже такое, сознательно выстраивайте тёплые связи с людьми.']
+         ] },
+    5: { planet: 'Меркурий', good: true, title: 'Меркурий: артистизм',
+         keys: ['артистизм', 'обаяние', 'общение', 'лёгкость'],
+         summary: 'Главное значение пятёрки в SYUCAI — артистизм. Энергия Меркурия даёт живость, обаяние и умение красиво подать себя, поэтому имя или название звучит ярко и легко запоминается.',
+         classic: {"planet": "Меркурий", "days": "5, 14, 23", "plus": "коммуникабельные, логичные, активные, удачливые в бизнесе и торговле.", "minus": "суетливость, поверхностность, резкость в словах, беспечность, непостоянство.", "mission": "Борьба и движение: преодоление препятствий, коммуникации, реформы, гибкость."},
+         sections: [
+           ['Для человека', 'Имя усиливает умение выступать, общаться, шутить, нравиться публике. Такому человеку хорошо даются сцена, камера, переговоры и продажи. Важно не распыляться и доводить начатое до конца.'],
+           ['Для бренда и компании', 'Отличная энергия для брендов, которые продают через общение, контент и эмоции. Название звучит живо и быстро распространяется.'],
+           ['Подходящие сферы', 'Шоу-бизнес, ведущие и артисты, блогинг и контент, реклама и маркетинг, торговля, туризм, обучение языкам, ивент-агентства.'],
+           ['Сильные стороны', 'Харизма, лёгкость в рекламе, быстрые продажи, широкий круг контактов.', 'plus'],
+           ['Риски', 'Поверхностность и суета, бренд может казаться несерьёзным.', 'minus'],
+           ['Совет', 'Используйте артистизм в продвижении и подкрепляйте его системной работой.']
+         ] },
+    6: { planet: 'Венера', good: true, title: 'Венера: успех',
+         keys: ['успех', 'любовь', 'брак', 'красота'],
+         summary: 'В SYUCAI шестёрка означает успех и удачу в замужестве. Энергия Венеры приносит признание, достаток, красоту и гармонию в любви.',
+         classic: {"planet": "Венера", "days": "6, 15, 24", "plus": "ценители комфорта, эстетики, гармонии и любви; творческие и мудрые, с хорошим шансом на успех и богатство.", "minus": "потакание своим желаниям, капризность, мстительность.", "mission": "Творчество и комфорт: красота, гармония, качество жизни, служение эстетике и любви."},
+         sections: [
+           ['Для человека', 'Имя помогает добиваться успеха и притягивать хорошие возможности. Оно считается удачным для брака и отношений. Человек с таким именем обаятелен, со вкусом, умеет создавать уют и красоту вокруг себя.'],
+           ['Для бренда и компании', 'Одна из самых удачных энергий для бизнеса, особенно связанного с красотой и удовольствием. Название вызывает симпатию и ассоциируется с успехом.'],
+           ['Подходящие сферы', 'Салоны красоты и косметика, мода и украшения, свадебная индустрия, дизайн и интерьер, рестораны и отели, искусство, парфюмерия, товары премиум-класса.'],
+           ['Сильные стороны', 'Привлекательный образ, финансовый успех, любовь клиентов.', 'plus'],
+           ['Риски', 'Расслабленность и тяга к удовольствиям. Успех нужно поддерживать качеством.', 'minus'],
+           ['Совет', 'Вкладывайтесь в эстетику, сервис и качество, тогда энергия успеха раскроется полностью.']
+         ] },
+    7: { planet: 'Кету', good: false, title: 'Кету: вызов природе',
+         keys: ['вызов', 'против течения', 'испытания', 'глубина'],
+         summary: 'В SYUCAI семёрка означает вызов природе. Энергия Кету ведёт против течения: носитель такого имени или названия идёт своим путём, часто вопреки обстоятельствам и привычному порядку вещей.',
+         classic: {"planet": "Кету", "days": "7, 16, 25", "plus": "мистики и философы, ищущие суть; харизматичные, энергичные, с развитой интуицией, умеют действовать быстро.", "minus": "зацикленность на себе, скрытность, резкие уходы в изоляцию, рассеянность, склонность создавать хаос.", "mission": "Йога и духовный поиск: внутренний рост, познание законов мироздания, поиск истины."},
+         sections: [
+           ['Для человека', 'Жизнь такого человека проходит через испытания и неожиданные повороты, многое приходится преодолевать. Он независим, глубоко мыслит, тянется к философии и духовному поиску. Важно не уходить в изоляцию и не бросать дела на полпути.'],
+           ['Для бренда и компании', 'Название звучит загадочно и нестандартно, но бизнесу с такой энергией приходится больше бороться с обстоятельствами. Подходит нишевым и экспертным проектам с сильной идеей.'],
+           ['Подходящие сферы', 'Исследования и наука, аналитика, психология, йога и духовные практики, альтернативная медицина, нишевые экспертные услуги.'],
+           ['Сильные стороны', 'Сила характера, независимость, преданная аудитория, способность пройти там, где другие сдаются.', 'plus'],
+           ['Риски', 'Препятствия, внезапные потери, отрыв от реальности и людей.', 'minus'],
+           ['Совет', 'Для нового названия лучше выбрать вариант с благоприятным числом. Если имя уже такое, опирайтесь на дисциплину и поддержку близких.']
+         ] },
+    8: { planet: 'Сатурн', good: false, title: 'Сатурн: постоянный упорный труд',
+         keys: ['труд', 'терпение', 'дисциплина', 'долгий путь'],
+         summary: 'В SYUCAI восьмёрка означает постоянный упорный труд. Энергия Сатурна даёт результат только через усилия: успех приходит медленно, зато держится долго.',
+         classic: {"planet": "Сатурн", "days": "8, 17, 26", "plus": "трудоголики и организаторы, реалисты, скрупулёзные и осторожные, с потенциалом сильного руководителя.", "minus": "жёсткость, деспотичность, гиперконтроль, недоверие, трудоголизм в ущерб жизни.", "mission": "Труд и результат: масштабная работа, дисциплина, материальный и структурный результат."},
+         sections: [
+           ['Для человека', 'Человеку с таким именем мало что даётся легко, всё приходится зарабатывать трудом и терпением. Зато он дисциплинирован, надёжен, умеет выдерживать нагрузки. Важно не забывать про отдых и радость.'],
+           ['Для бренда и компании', 'Бизнесу с таким названием нужен долгий разгон и много работы. Энергия подходит компаниям, которые строят на годы и ценят надёжность выше скорости.'],
+           ['Подходящие сферы', 'Строительство и недвижимость, производство, промышленность, логистика, сельское хозяйство, юридические услуги, госзаказ.'],
+           ['Сильные стороны', 'Надёжность, устойчивость в кризис, прочная репутация.', 'plus'],
+           ['Риски', 'Медленный рост, задержки, усталость и ощущение, что всё даётся тяжело.', 'minus'],
+           ['Совет', 'Если хотите лёгкого старта, подберите название с более благоприятным числом. Если выбор сделан, планируйте долгий путь и берегите силы.']
+         ] },
+    9: { planet: 'Марс', good: false, title: 'Марс: эмоциональная глубина',
+         keys: ['эмоции', 'страсть', 'энергия', 'сила'],
+         summary: 'В SYUCAI девятка означает эмоциональную глубину. Энергия Марса даёт сильные чувства, страсть и напор, поэтому имя или название звучит мощно и эмоционально.',
+         classic: {"planet": "Марс", "days": "9, 18, 27", "plus": "деятельные, энергичные, с боевым характером, напористые, стремятся помогать.", "minus": "эмоциональная нестабильность, агрессия, вспыльчивость, излишняя жертвенность.", "mission": "Служение людям: помощь обществу, гуманизм, эмоциональная поддержка и вдохновение."},
+         sections: [
+           ['Для человека', 'Человек с таким именем глубоко чувствует и ярко реагирует. В нём много энергии, смелости и желания защищать своих. Эмоции могут захлёстывать, поэтому важно учиться управлять ими.'],
+           ['Для бренда и компании', 'Название вызывает сильный эмоциональный отклик и передаёт драйв. Подходит брендам, которые продают через эмоции и энергию, при условии, что команда умеет держать себя в руках.'],
+           ['Подходящие сферы', 'Спорт и фитнес, безопасность, строительство, автомобили, медицина, социальные и благотворительные проекты, творчество с сильными эмоциями.'],
+           ['Сильные стороны', 'Энергия, смелость, сильная эмоциональная связь с аудиторией.', 'plus'],
+           ['Риски', 'Вспыльчивость, конфликты, эмоциональные качели, выгорание.', 'minus'],
+           ['Совет', 'Направляйте эмоции в дело и творчество и делайте паузу перед резкими решениями.']
+         ] }
+  };
+
+  var root = document.getElementById('ni-widget');
+  var $ = function (id) { return root.querySelector('#' + id); };
+  var input = $('ni-text'), form = $('ni-form'), err = $('ni-error'), results = $('ni-results');
+
+  function sumDigits(n) { return String(n).split('').reduce(function (a, b) { return a + Number(b); }, 0); }
+
+  function calculate(quiet) {
+    var raw = input.value.trim();
+    var latin = toLatin(raw);
+    var hasCyr = /[А-ЯЁӘҒҚҢӨҰҮҺІ]/i.test(raw);
+    var chars = latin.split('');
+    var counted = [], chips = [];
+    chars.forEach(function (ch) {
+      if (MAP.hasOwnProperty(ch)) { counted.push(MAP[ch]); chips.push([ch, MAP[ch]]); }
+      else if (/\s/.test(ch) && chips.length && chips[chips.length - 1] !== null) { chips.push(null); }
+    });
+    var total = counted.reduce(function (a, b) { return a + b; }, 0);
+    if (!counted.length || total === 0) {
+      if (!quiet) err.textContent = 'Введите имя или название буквами.';
+      results.classList.remove('is-visible');
+      return;
+    }
+    err.textContent = '';
+
+    var steps = [counted.join(' + ') + ' = ' + total];
+    var n = total;
+    while (n > 9) { var next = sumDigits(n); steps.push(String(n).split('').join(' + ') + ' = ' + next); n = next; }
+
+    var e = ENERGY[n];
+    $('ni-num').textContent = n;
+    $('ni-name').textContent = e.title;
+    $('ni-for').textContent = '«' + raw + '» · планета ' + e.planet;
+    var tr = $('ni-translit');
+    if (hasCyr) { tr.style.display = 'block'; tr.innerHTML = ''; tr.appendChild(document.createTextNode('Считаем по латинскому написанию: ')); var bb = document.createElement('b'); bb.textContent = latin.replace(/\s+/g, ' ').trim(); tr.appendChild(bb); tr.appendChild(document.createTextNode('. Если в паспорте или логотипе написано иначе, введите латиницей.')); }
+    else { tr.style.display = 'none'; }
+    var badge = $('ni-badge'); badge.textContent = e.good ? 'Благоприятное число' : 'Сложное число'; badge.className = 'ni-badge ' + (e.good ? 'ni-badge--good' : 'ni-badge--hard');
+
+    var box = $('ni-letters'); box.innerHTML = '';
+    chips.forEach(function (c) {
+      var el = document.createElement('div');
+      if (c === null) { el.className = 'ni-chip ni-chip--space'; }
+      else {
+        el.className = 'ni-chip';
+        var b = document.createElement('b'); b.textContent = c[0];
+        var s = document.createElement('span'); s.textContent = c[1];
+        el.appendChild(b); el.appendChild(s);
+      }
+      box.appendChild(el);
+    });
+
+    $('ni-calc').textContent = counted.length > 30 ? 'Сумма = ' + total + (steps.length > 1 ? '  →  ' + steps.slice(1).join('  →  ') : '') : steps.join('  →  ');
+
+    var keys = $('ni-keys'); keys.innerHTML = '';
+    e.keys.forEach(function (k) { var s = document.createElement('span'); s.className = 'ni-key'; s.textContent = k; keys.appendChild(s); });
+
+    $('ni-summary').textContent = e.summary;
+    $('ni-classic-title').textContent = 'Классическое значение цифры ' + n + ' в Сюцай';
+    var cl = $('ni-classic'); cl.innerHTML = '';
+    [['Энергия', e.classic.planet + ' (рождённые ' + e.classic.days + ' числа)', ''],
+     ['В плюсе', e.classic.plus, 'plus'],
+     ['В минусе', e.classic.minus, 'minus'],
+     ['Как число миссии', e.classic.mission, '']].forEach(function (r) {
+      var p = document.createElement('p');
+      var t = document.createElement('span'); t.className = 'ni-cl-tag' + (r[2] ? ' ni-cl-tag--' + r[2] : ''); t.textContent = r[0] + ': ';
+      p.appendChild(t); p.appendChild(document.createTextNode(r[1])); cl.appendChild(p);
+    });
+
+    var secs = $('ni-sections'); secs.innerHTML = '';
+    e.sections.forEach(function (sec) {
+      var d = document.createElement('div');
+      d.className = 'ni-sec' + (sec[2] ? ' ni-sec--' + sec[2] : '');
+      var h = document.createElement('h4'); h.className = 'ni-sec-title'; h.textContent = sec[0];
+      var p = document.createElement('p'); p.textContent = sec[1];
+      d.appendChild(h); d.appendChild(p); secs.appendChild(d);
+    });
+
+    if (quiet && results.classList.contains('is-visible')) return;
+    results.classList.remove('is-visible');
+    void results.offsetWidth;
+    results.classList.add('is-visible');
+  }
+
+  form.addEventListener('submit', function (ev) { ev.preventDefault(); calculate(); });
+  $('ni-btn').addEventListener('click', function () { calculate(); });
+  input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); calculate(); } });
+  var timer = null;
+  input.addEventListener('input', function () {
+    err.textContent = '';
+    clearTimeout(timer);
+    if (input.value.trim().length >= 2) timer = setTimeout(function () { calculate(true); }, 450);
+  });
+
+  var tbl = $('ni-table-wrap'), tgl = $('ni-table-toggle');
+  tgl.addEventListener('click', function () {
+    var open = tbl.classList.toggle('is-open');
+    tgl.textContent = open ? 'Скрыть таблицу букв' : 'Показать таблицу букв';
+  });
+})();
+</script>
+</body>
+</html>
