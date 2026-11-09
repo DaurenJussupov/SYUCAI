@@ -17,5 +17,19 @@ export function calculateBirth(value,now=new Date()){
  const [d,mo,y]=m.slice(1).map(Number), date=new Date(y,mo-1,d);
  if(y<1900||date>now||date.getFullYear()!==y||date.getMonth()!==mo-1||date.getDate()!==d)throw Error('Проверьте дату рождения');
  const c=reduce(String(d).split('').map(Number)),mission=reduce(m.slice(1).join('').split('').map(Number));
- return {consciousness:{...c,data:birth.CONSCIOUSNESS[c.value]},mission:{...mission,data:birth.MISSION[mission.value]}};
+ const today = {day:now.getDate(),month:now.getMonth()+1,year:now.getFullYear()};
+ const digits = n => String(n).split('').map(Number);
+ const personalYear = reduce([...digits(d),...digits(mo),...digits(today.year)]);
+ const personalMonth = reduce([personalYear.value,...digits(today.month)]);
+ const personalDay = reduce([personalMonth.value,...digits(today.day)]);
+ const generalDay = reduce([...digits(today.day),...digits(today.month),...digits(today.year)]);
+ return {
+  consciousness:{...c,data:birth.CONSCIOUSNESS[c.value]},
+  mission:{...mission,data:birth.MISSION[mission.value]},
+  personalYear:personalYear.value,personalMonth:personalMonth.value,
+  personalDay:{...personalDay,data:birth.DAYS[personalDay.value],calc:`Личный год ${personalYear.value} → личный месяц ${personalMonth.value} → личный день ${personalDay.value}`},
+  generalDay:{...generalDay,data:birth.DAYS[generalDay.value]},
+  today:`${today.year}-${String(today.month).padStart(2,'0')}-${String(today.day).padStart(2,'0')}`,
+  todayLabel:new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'long',year:'numeric'}).format(now)
+ };
 }

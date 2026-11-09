@@ -1,12 +1,16 @@
 import {test,expect} from '@playwright/test';
+test.use({timezoneId:'Asia/Qyzylorda'});
 const origin='http://127.0.0.1:8787';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j3ioAAAAASUVORK5CYII=','base64');
 test('minimal home, Latin validation, exact calculations and responsive navigation',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.clock.install({time:new Date('2026-11-09T07:00:00Z')});
  await page.goto('/');await expect(page.locator('main input')).toHaveCount(2);
  await page.locator('#name').fill('Анна');await expect(page.locator('#name-error')).toContainText('Use Latin letters');
- await page.locator('#birth').fill('24091987');await page.locator('#name').fill('Anna');await expect(page).toHaveURL(/\/results$/);
- await expect(page.locator('.number')).toHaveText(['6','4','3']);
+ await page.locator('#birth').fill('24091987');await page.locator('#name').fill('Anna');await page.clock.runFor(1500);await expect(page).toHaveURL(origin+'/');await page.getByRole('button',{name:'Рассчитать',exact:true}).click();await expect(page).toHaveURL(/\/results$/);
+ await expect(page.locator('.day-grid .number')).toHaveText(['9','3']);
+ await expect(page.locator('.energy-grid .number')).toHaveText(['6','4','3']);
+ await expect(page.locator('time')).toHaveAttribute('datetime','2026-11-09');
  await page.getByRole('link',{name:/Мастер SYUCAI в Вашем городе/}).click();await page.locator('#search-city').fill('Кызылорда, Казахстан');await page.getByRole('button',{name:'Найти мастера'}).click();await expect(page.locator('#master-list')).toContainText('пока нет опубликованных анкет');
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('link',{name:'О SYUCAI',exact:true}).click();await expect(page.getByRole('heading',{name:'Жанат Кожамжаров'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
@@ -37,4 +41,41 @@ test('real D1/R2 registration, private documents, moderation, reviews, contact a
  // Remove the test master from discovery; only local emulator data is used.
  await page.request.post('/api/admin/moderate',{headers:{Origin:origin,Authorization:'Bearer local-test-admin'},data:{id,status:'rejected'}});
  await outsider.close();
+});
+
+for (const mode of ['birth-only', 'name-only']) {
+ test('calculate button accepts '+mode+' and keeps the other field optional', async ({page}) => {
+  await page.clock.install({time:new Date('2026-11-09T07:00:00Z')});
+  await page.goto('/');
+  if (mode==='birth-only') await page.locator('#birth').fill('24091987');
+  else await page.locator('#name').fill('Anna');
+  await page.getByRole('button',{name:'Рассчитать',exact:true}).click();
+  await expect(page).toHaveURL(/\/results$/);
+  if (mode==='birth-only') {
+   await expect(page.locator('.number')).toHaveText(['9','3','6','4']);
+   await expect(page.locator('[data-result="name"]')).toHaveCount(0);
+   await expect(page.getByRole('heading',{name:'Что делать'})).toHaveCount(2);
+   await expect(page.getByRole('heading',{name:'Чего избегать'})).toHaveCount(2);
+  } else {
+   await expect(page.locator('.number')).toHaveText(['3']);
+   await expect(page.locator('.day-results')).toHaveCount(0);
+  }
+ });
+}
+test('button and Enter validate supplied fields without silently ignoring errors', async ({page}) => {
+ await page.goto('/');
+ await page.getByRole('button',{name:'Рассчитать',exact:true}).click();
+ await expect(page.locator('#birth-error')).toContainText('Введите дату рождения или имя');
+ await page.locator('#birth').fill('31022000');await page.locator('#name').fill('Anna');
+ await page.getByRole('button',{name:'Рассчитать',exact:true}).click();
+ await expect(page.locator('#birth-error')).toContainText('Проверьте дату');
+ await expect(page).toHaveURL(origin+'/');
+ await page.locator('#birth').fill('24091987');await page.locator('#name').fill('Анна');
+ await page.getByRole('button',{name:'Рассчитать',exact:true}).click();
+ await expect(page.locator('#name-error')).toContainText('Use Latin letters');
+ await page.locator('#name').fill('');await page.locator('#birth').press('Enter');
+ await expect(page).toHaveURL(/\/results$/);await expect(page.locator('[data-result="consciousness"] .number')).toHaveText('6');
+ await page.getByRole('button',{name:'Изменить данные'}).click();
+ await page.locator('#birth').fill('');await page.locator('#name').fill('Anna');await page.locator('#name').press('Enter');
+ await expect(page).toHaveURL(/\/results$/);await expect(page.locator('.number')).toHaveText(['3']);
 });

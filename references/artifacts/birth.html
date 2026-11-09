@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Число сознания и число миссии</title>
+<title>Личный и общий день — Сюцай</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -80,6 +80,16 @@
     background: #fcf7ef; border-left: 3px solid var(--nc-accent-2);
   }
   .nc-sections { margin-top: 6px; }
+  .nc-today { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--nc-accent); }
+  .nc-block-title {
+    font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 24px;
+    margin: 10px 0 -4px; color: var(--nc-ink); text-align: center;
+  }
+  .nc-days-grid { display: grid; gap: 18px; }
+  .nc-num.nc-num--general { color: #4f6b8a; background: radial-gradient(circle at 30% 30%, #f4f8fc, #dbe6f1); border-color: #c4d4e5; }
+  .nc-sec-title--plus { color: var(--nc-plus) !important; }
+  .nc-sec-title--minus { color: var(--nc-minus) !important; }
+  .nc-day .nc-sec:first-of-type { border-top: 0; }
   .nc-sec { padding: 14px 0 0; border-top: 1px dashed var(--nc-line); margin-top: 14px; }
   .nc-sec:first-child { border-top: 0; margin-top: 8px; }
   .nc-sec-title {
@@ -130,8 +140,9 @@
 
 <div class="nc-widget" id="nc-widget">
   <div class="nc-head">
-    <h2 class="nc-title">Число сознания и число миссии</h2>
-    <p class="nc-sub">Введите дату рождения, и расчёт появится сразу</p>
+    <h2 class="nc-title">Ваш день по Сюцай</h2>
+    <p class="nc-sub">Введите дату рождения, чтобы узнать свой личный день и общий день на сегодня</p>
+    <p class="nc-today" id="nc-today"></p>
   </div>
 
   <form class="nc-form" id="nc-form" novalidate>
@@ -142,6 +153,37 @@
   <p class="nc-error" id="nc-error" role="alert"></p>
 
   <div class="nc-results" id="nc-results" aria-live="polite">
+    <div class="nc-block-title">Сегодняшний день</div>
+    <div class="nc-days-grid">
+      <div class="nc-card nc-day">
+        <div class="nc-card-head">
+          <div class="nc-num" id="nc-p-num">–</div>
+          <div>
+            <div class="nc-label">Ваш личный день</div>
+            <h3 class="nc-name" id="nc-p-name"></h3>
+            <span class="nc-calc" id="nc-p-calc"></span>
+          </div>
+        </div>
+        <div class="nc-summary"><p class="nc-text" id="nc-p-sum"></p></div>
+        <div class="nc-sec"><h4 class="nc-sec-title nc-sec-title--plus">Что делать</h4><p id="nc-p-todo"></p></div>
+        <div class="nc-sec"><h4 class="nc-sec-title nc-sec-title--minus">Чего избегать</h4><p id="nc-p-avoid"></p></div>
+      </div>
+      <div class="nc-card nc-day">
+        <div class="nc-card-head">
+          <div class="nc-num nc-num--general" id="nc-g-num">–</div>
+          <div>
+            <div class="nc-label">Общий день</div>
+            <h3 class="nc-name" id="nc-g-name"></h3>
+            <span class="nc-calc" id="nc-g-calc"></span>
+          </div>
+        </div>
+        <div class="nc-summary"><p class="nc-text" id="nc-g-sum"></p></div>
+        <div class="nc-sec"><h4 class="nc-sec-title nc-sec-title--plus">Что делать</h4><p id="nc-g-todo"></p></div>
+        <div class="nc-sec"><h4 class="nc-sec-title nc-sec-title--minus">Чего избегать</h4><p id="nc-g-avoid"></p></div>
+      </div>
+    </div>
+
+    <div class="nc-block-title">Ваши энергии</div>
     <div class="nc-card">
       <div class="nc-card-head">
         <div class="nc-num" id="nc-c-num">–</div>
@@ -173,7 +215,7 @@
     </div>
   </div>
 
-  <p class="nc-note">Число сознания считается по дню рождения, число миссии — по всем цифрам даты.</p>
+  <p class="nc-note">Личный день = день и месяц рождения + текущий год (личный год) + номер месяца (личный месяц) + сегодняшнее число. Общий день = сумма всех цифр сегодняшней даты. Число сознания считается по дню рождения, число миссии — по всем цифрам даты.</p>
 </div>
 
 <script>
@@ -346,6 +388,45 @@
          ] }
   };
 
+  var DAYS = {
+    1: { planet: 'Солнце', title: 'День Солнца: начинания и лидерство',
+         summary: 'Энергия ясности, воли и инициативы. Хороший день, чтобы начинать новое, принимать решения и заявлять о себе.',
+         todo: 'Начинайте проекты, подписывайте важные документы, говорите с руководством, выступайте публично, берите ответственность на себя.',
+         avoid: 'Гордыни, споров ради правоты, давления на людей и решений за других.' },
+    2: { planet: 'Луна', title: 'День Луны: чувства и отношения',
+         summary: 'Мягкий, эмоциональный день. Обостряются интуиция и чувствительность, на первый план выходят близкие люди и внутреннее состояние.',
+         todo: 'Проведите время с семьёй, мягко договаривайтесь, заботьтесь о себе, отдыхайте, занимайтесь творчеством, прислушивайтесь к интуиции.',
+         avoid: 'Резких решений, выяснения отношений и крупных трат на эмоциях.' },
+    3: { planet: 'Юпитер', title: 'День Юпитера: знания и порядок',
+         summary: 'День мудрости и роста. Хорошо идут учёба, планирование и всё, что требует системы и правил.',
+         todo: 'Учитесь, консультируйтесь со специалистами, планируйте, наводите порядок в документах, решайте юридические и финансовые вопросы, помогайте советом.',
+         avoid: 'Лени, азарта, категоричности и непрошеных поучений.' },
+    4: { planet: 'Раху', title: 'День Раху: неожиданности',
+         summary: 'Непредсказуемый день. В Сюцай его называют днём мистических потерь или мистических возможностей: всё может повернуться неожиданно.',
+         todo: 'Ищите нестандартные решения, работайте с технологиями и новыми идеями, перепроверяйте информацию, занимайтесь саморазвитием.',
+         avoid: 'Крупных покупок, рискованных вложений, азарта, поспешных подписаний и громких обещаний.' },
+    5: { planet: 'Меркурий', title: 'День Меркурия: общение и торговля',
+         summary: 'Живой, быстрый день. Легко идут разговоры, переписка, продажи и любые дела, где нужно договориться.',
+         todo: 'Продавайте, звоните, пишите, запускайте рекламу, ведите переговоры, ездите на встречи, учитесь новому, закрывайте мелкие дела.',
+         avoid: 'Пустой болтовни, резких слов, сплетен и распыления на десять дел сразу.' },
+    6: { planet: 'Венера', title: 'День Венеры: красота и любовь',
+         summary: 'Тёплый, приятный день. Энергия притяжения, удовольствия и гармонии хорошо работает в отношениях и всём, что связано с красотой.',
+         todo: 'Ходите на свидания, проводите время с семьёй, мирьтесь, ухаживайте за собой, покупайте вещи для дома, творите, устраивайте праздник.',
+         avoid: 'Излишеств, лени, капризов, переедания и импульсивных покупок.' },
+    7: { planet: 'Кету', title: 'День Кету: внутренняя работа',
+         summary: 'Тихий, глубокий день. Энергия направлена внутрь: к анализу, духовным практикам и завершению старого.',
+         todo: 'Медитируйте, занимайтесь йогой, анализируйте, побудьте наедине с собой, доводите до конца начатые дела, исследуйте.',
+         avoid: 'Старта важных проектов, резкого разрыва отношений и суеты.' },
+    8: { planet: 'Сатурн', title: 'День Сатурна: труд и дисциплина',
+         summary: 'Рабочий, серьёзный день. Результат даёт только упорный труд, зато сделанное сегодня будет прочным.',
+         todo: 'Работайте над сложными задачами, наводите порядок в финансах, возвращайте долги, занимайтесь недвижимостью и долгосрочным планированием.',
+         avoid: 'Надежды на лёгкие деньги, лени, жёсткости к людям и ожидания быстрых результатов.' },
+    9: { planet: 'Марс', title: 'День Марса: энергия и действие',
+         summary: 'Энергичный, горячий день. Много сил и смелости, но и эмоции легко выходят из-под контроля.',
+         todo: 'Занимайтесь спортом и физической работой, делайте смелые шаги, защищайте свои интересы, помогайте людям, завершайте затянувшиеся вопросы.',
+         avoid: 'Агрессии, вспыльчивости, ссор, травмоопасных занятий и рискованного вождения.' }
+  };
+
   var root = document.getElementById('nc-widget');
   var $ = function (id) { return root.querySelector('#' + id); };
   var input = $('nc-date'), form = $('nc-form'), err = $('nc-error'), results = $('nc-results');
@@ -373,6 +454,11 @@
     });
   }
 
+  var MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  var TODAY = new Date();
+  function sumStr(str) { return str.replace(/\D/g, '').split('').reduce(function (a, b) { return a + Number(b); }, 0); }
+  function red(n) { while (n > 9) n = sumStr(String(n)); return n; }
+
   function parse(str) {
     var m = str.trim().match(/^(\d{1,2})[.\/\-\s](\d{1,2})[.\/\-\s](\d{4})$/);
     if (!m) return null;
@@ -393,6 +479,8 @@
     err.textContent = '';
     if (v.length === 8) calculate();
   });
+
+  $('nc-today').textContent = 'Сегодня ' + TODAY.getDate() + ' ' + MONTHS[TODAY.getMonth()] + ' ' + TODAY.getFullYear();
 
   form.addEventListener('submit', function (e) { e.preventDefault(); calculate(); });
   $('nc-btn').addEventListener('click', function () { calculate(); });
@@ -415,6 +503,31 @@
     var m = reduce(allDigits);
 
     var ci = CONSCIOUSNESS[c.value], mi = MISSION[m.value];
+
+    // Личный день: личный год → личный месяц → личный день
+    var td = TODAY.getDate(), tm = TODAY.getMonth() + 1, ty = TODAY.getFullYear();
+    var pYear = red(sumStr(String(p.d)) + sumStr(String(p.m)) + sumStr(String(ty)));
+    var pMonth = red(pYear + sumStr(String(tm)));
+    var pDay = red(pMonth + sumStr(String(td)));
+    // Общий день: все цифры сегодняшней даты
+    var gSum = sumStr(String(td) + String(tm) + String(ty));
+    var gDay = red(gSum);
+
+    var pd = DAYS[pDay], gd = DAYS[gDay];
+    $('nc-p-num').textContent = pDay;
+    $('nc-p-name').textContent = pd.title;
+    $('nc-p-calc').textContent = 'Личный год ' + pYear + '  →  личный месяц ' + pMonth + '  →  личный день ' + pDay;
+    $('nc-p-sum').textContent = pd.summary;
+    $('nc-p-todo').textContent = pd.todo;
+    $('nc-p-avoid').textContent = pd.avoid;
+
+    var gDigits = (String(td) + String(tm) + String(ty)).split('').join(' + ');
+    $('nc-g-num').textContent = gDay;
+    $('nc-g-name').textContent = gd.title;
+    $('nc-g-calc').textContent = gDigits + ' = ' + gSum + (gSum > 9 ? '  →  ' + gDay : '');
+    $('nc-g-sum').textContent = gd.summary;
+    $('nc-g-todo').textContent = gd.todo;
+    $('nc-g-avoid').textContent = gd.avoid;
 
     $('nc-c-num').textContent = c.value;
     $('nc-c-name').textContent = ci.name;
