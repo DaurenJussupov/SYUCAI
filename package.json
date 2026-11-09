@@ -5,16 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "node scripts/extract-translations.js && vite build && node scripts/build-translations.js",
     "preview": "wrangler dev",
     "db:local": "wrangler d1 migrations apply syucai --local",
     "db:remote": "wrangler d1 migrations apply syucai --remote",
     "deploy": "npm run build && wrangler deploy",
     "test": "node --test tests/*.test.js",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build && playwright test",
+    "i18n:extract": "node scripts/extract-translations.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
+    "acorn": "^8.19.0",
+    "flag-icons": "^7.6.0",
+    "parse5": "^8.1.1",
     "vite": "^7.2.2",
     "wrangler": "^4.45.0"
   },
