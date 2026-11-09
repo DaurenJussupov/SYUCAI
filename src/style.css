@@ -102,7 +102,6 @@ summary::-webkit-details-marker { display: none; }
 summary span { font-size: 15px; color: #95959f; }
 details[open] summary span { transform: rotate(45deg); }
 details p { font-size: 12px; color: #73737e; margin: 15px 0 0; line-height: 1.95; }
-.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9%; }
 .prose { padding-top: 10px; }
 .prose .lead { font-size: 21px; font-weight: 450; line-height: 1.7; color: #454550; letter-spacing: -.035em; }
 .prose p { font-size: 14px; color: #74747e; }
@@ -218,7 +217,6 @@ select.control { appearance: auto; }
   .result-card { margin-bottom: 18px; padding: 24px; }
   .result-card h3 { min-height: 0; }
   .number { font-size: 64px; }
-  .about-grid { display: block; }
   .prose { margin-top: 30px; }
   .prose .lead { font-size: 19px; }
   .prose p { font-size: 13px; }
@@ -420,3 +418,51 @@ select.control { appearance: auto; }
 .admin-page .account-head { flex-wrap: wrap; gap: 12px; }
 
 .review-preview { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 14px 0 0; padding-inline-start: 12px; border-inline-start: 2px solid #ececf0; }
+
+/* About: the portrait and biography remain separate at every screen size. */
+.about { max-width: 1240px; }
+.about-intro { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.1fr); gap: 8%; align-items: start; }
+.about-heading h1 { margin: 0 0 24px; }
+.about-heading .lead { max-width: 440px; font-size: clamp(21px,2.2vw,28px); line-height: 1.55; letter-spacing: -.035em; }
+.about-description { padding-top: 0; }
+.about-description p:first-child { margin-top: 0; }
+.about-topics { margin: 48px 0 72px; padding: 28px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.about-topics h2 { font-size: 18px; font-weight: 500; margin: 0 0 22px; }
+.about-topics ul { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 32px; padding: 0; margin: 0; list-style: none; }
+.about-topics li { font-size: 13px; line-height: 1.8; color: #62626d; padding-inline-start: 16px; position: relative; }
+.about-topics li::before { content: ''; position: absolute; inset-inline-start: 0; top: .7em; width: 4px; height: 4px; border-radius: 50%; background: var(--orange); }
+.founder-section { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); gap: 8%; align-items: start; }
+.founder-portrait { margin: 0; }
+.founder-portrait img { display: block; width: 100%; height: auto; border-radius: 16px; }
+.founder-biography { padding: 8px 0 0; min-width: 0; }
+.founder-biography h2 { margin: 14px 0 24px; font-size: clamp(27px,3vw,38px); line-height: 1.2; letter-spacing: -.045em; }
+.founder-biography .lead { font-size: 18px; line-height: 1.7; }
+.founder-biography .credentials-source { font-size: 12px; color: var(--muted); margin-top: 24px; }
+.founder-credentials { margin-top: 16px; }
+.founder-credentials summary { gap: 18px; font-size: 13px; line-height: 1.7; padding: 17px 0; }
+.founder-credentials summary > span { flex-shrink: 0; }
+.founder-credentials ul { margin: 0 0 24px; padding-inline-start: 18px; }
+.founder-credentials li { font-size: 13px; line-height: 1.8; color: #74747e; margin-bottom: 10px; overflow-wrap: anywhere; }
+.about-institute { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.1fr); gap: 8%; padding-top: 48px; margin-top: 64px; border-top: 1px solid var(--line); }
+.about-institute h2 { font-size: 28px; line-height: 1.4; letter-spacing: -.035em; margin: 14px 0 24px; }
+.about-institute .prose { padding: 0; }
+.about-institute p:first-child { margin-top: 0; }
+.about-source { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
+.about-calculator { max-width: 680px; margin: 64px auto 0; padding: 32px 0 0; border-top: 1px solid var(--line); }
+.about-calculator h2 { font-size: 24px; margin: 0 0 20px; }
+.about-calculator > p:not(.fineprint) { color: #74747e; font-size: 14px; }
+.about-calculator .fineprint { margin-bottom: 24px; }
+@media(max-width:680px) {
+ .about-intro,.founder-section,.about-institute { grid-template-columns: minmax(0,1fr); gap: 24px; }
+ .about .prose { margin-top: 0; }
+ .about-heading .lead { font-size: 22px; }
+ .about-heading h1 { margin-bottom: 20px; }
+ .about-topics { margin: 28px 0 40px; padding: 24px 0; }
+ .about-topics ul { grid-template-columns: minmax(0,1fr); gap: 12px; }
+ .founder-portrait { max-width: 420px; }
+ .founder-biography h2 { font-size: 30px; }
+ .founder-biography .lead { font-size: 18px; }
+ .about-institute { padding-top: 32px; margin-top: 40px; gap: 8px; }
+ .about-institute h2 { font-size: 25px; margin-bottom: 12px; }
+ .about-calculator { margin-top: 40px; }
+}
