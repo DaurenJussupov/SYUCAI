@@ -31,5 +31,6 @@
   "build": {
     "command": "npm run build && node scripts/cloudflare-resources.js"
   },
+  "triggers": { "crons": ["*/5 * * * *"] },
   "workers_dev": true
 }

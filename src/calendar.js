@@ -1,3 +1,4 @@
+import {track} from './analytics.js';
 import {parseBirthDate} from './calculations.js';
 import {calendarDateKey,calendarMonth,calculateCalendarDay} from './calendar-calculations.js';
 import {currentLanguage,translateText,translateDocument} from './i18n/runtime.js';
@@ -33,7 +34,7 @@ function renderPanel(){
   if(desktop)document.querySelector('#calendar-year').focus({preventScroll:true});
  };
  panel.querySelector('#calendar-today').onclick=()=>{const date=new Date();state.selected=date;state.year=date.getFullYear();state.month=date.getMonth()+1;renderPanel()};
- for(const cell of panel.querySelectorAll('[data-date]'))cell.onclick=()=>{const [y,m,d]=cell.dataset.date.split('-').map(Number);state.selected=new Date(y,m-1,d);renderPanel();document.querySelector(`[data-date="${cell.dataset.date}"]`)?.focus()};
+ for(const cell of panel.querySelectorAll('[data-date]'))cell.onclick=()=>{track('calendar_day');const [y,m,d]=cell.dataset.date.split('-').map(Number);state.selected=new Date(y,m-1,d);renderPanel();document.querySelector(`[data-date="${cell.dataset.date}"]`)?.focus()};
  translateDocument();
 }
 export function renderCalendar({shell,birthValue,onBirthChange}){
