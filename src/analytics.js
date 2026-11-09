@@ -46,8 +46,8 @@ export function showConsent(force=true){
  let box=document.querySelector('#analytics-consent');
  if(location.pathname==='/admin'||(!force&&read(localStorage,consentKey))){box?.remove();return}
  if(box)return;
- box=document.createElement('aside');box.id='analytics-consent';box.className='analytics-consent';box.setAttribute('aria-label','Настройки аналитики');
- box.innerHTML='<p>Разрешить аналитику посещений? Имена, даты рождения и сообщения не передаются. <a data-link href="/privacy">Подробнее</a></p><div><button type="button" class="button" data-consent="yes">Разрешить</button><button type="button" class="button secondary" data-consent="no">Только необходимые</button></div>';
+ box=document.createElement('aside');box.id='analytics-consent';box.className='analytics-consent';box.setAttribute('aria-label','Настройки cookies');
+ box.innerHTML='<p>Мы используем cookies для работы сайта и аналитики.</p><div><button type="button" class="button" data-consent="yes">Принять cookies</button><button type="button" class="button secondary" data-consent="no">Только необходимые</button></div><p class="cookie-consent-note">Нажимая «Принять cookies», вы даёте согласие на использование аналитических cookies и обработку данных для аналитики посещений. <a data-link href="/privacy">Подробнее</a></p>';
  document.body.append(box);translateDocument();
  for(const button of box.querySelectorAll('[data-consent]'))button.onclick=()=>{const choice=button.dataset.consent;if(choice==='no')revoke();write(localStorage,consentKey,choice);box.remove();if(choice==='yes'){if(gaId)window['ga-disable-'+gaId]=false;analyticsPage()}};
 }
