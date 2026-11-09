@@ -7,7 +7,7 @@ test('minimal home, Latin validation, exact calculations and responsive navigati
  await page.locator('#name').fill('Анна');await expect(page.locator('#name-error')).toContainText('Use Latin letters');
  await page.locator('#birth').fill('24091987');await page.locator('#name').fill('Anna');await expect(page).toHaveURL(/\/results$/);
  await expect(page.locator('.number')).toHaveText(['6','4','3']);
- await page.getByRole('link',{name:/Найти мастера SYUCAI/}).click();await page.locator('#search-city').fill('Кызылорда, Казахстан');await page.getByRole('button',{name:'Найти мастера'}).click();await expect(page.locator('#master-list')).toContainText('пока нет опубликованных анкет');
+ await page.getByRole('link',{name:/Мастер SYUCAI в Вашем городе/}).click();await page.locator('#search-city').fill('Кызылорда, Казахстан');await page.getByRole('button',{name:'Найти мастера'}).click();await expect(page.locator('#master-list')).toContainText('пока нет опубликованных анкет');
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Открыть меню'}).click();await page.getByRole('link',{name:'О SYUCAI',exact:true}).click();await expect(page.getByRole('heading',{name:'Жанат Кожамжаров'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
 });
