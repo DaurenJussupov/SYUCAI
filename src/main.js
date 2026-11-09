@@ -1,5 +1,6 @@
+import '@fontsource-variable/manrope';
 import './style.css';
-import {calculateBirth,calculateName,latinPattern} from './calculations.js';
+import {calculateBirth,calculateName} from './calculations.js';
 import {cities} from '../shared/cities.js';
 const app=document.querySelector('#app');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -12,10 +13,30 @@ function go(path){history.pushState({},'',path);render();window.scrollTo({top:0,
 document.addEventListener('click',e=>{const a=e.target.closest('a[data-link]');if(a&&!e.metaKey&&!e.ctrlKey){e.preventDefault();go(a.getAttribute('href'))}});
 window.addEventListener('popstate',render);
 const link=(path,text,cls='')=>`<a data-link href="${path}" class="${cls}">${text}</a>`;
-function shell(content,cls=''){content=content.replaceAll('↗',arrowSvg).replaceAll('✳',sunSvg).replaceAll('⌑',calendarSvg);app.innerHTML=`<header class="header"><a href="/" data-link class="brand" aria-label="SYUCAI — главная"><img src="/mark.svg" alt="" width="30" height="38"><span>SYUCAI</span></a><nav aria-label="Главная навигация">${link('/about','О SYUCAI')}${link('/masters','Найти мастера')}${link('/account','Кабинет мастера','nav-account')}</nav><button class="menu-button" aria-label="Открыть меню" aria-expanded="false">☰</button></header><main class="${cls}" id="main">${content}</main><div class="toast" role="status" hidden></div>`;const menu=document.querySelector('.menu-button');menu.onclick=()=>{const open=menu.getAttribute('aria-expanded')!=='true';menu.setAttribute('aria-expanded',String(open));document.querySelector('nav').classList.toggle('open',open)}}
+function setMenu(open, restoreFocus = false) {
+ const button = document.querySelector('.menu-button');
+ const nav = document.querySelector('#site-menu');
+ if (!button || !nav) return;
+ button.setAttribute('aria-expanded', String(open));
+ button.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+ nav.hidden = !open;
+ if (restoreFocus) button.focus();
+}
+document.addEventListener('keydown', e => {
+ if (e.key === 'Escape' && document.querySelector('.menu-button')?.getAttribute('aria-expanded') === 'true') setMenu(false, true);
+});
+document.addEventListener('click', e => {
+ if (!e.target.closest('.header') && document.querySelector('.menu-button')?.getAttribute('aria-expanded') === 'true') setMenu(false);
+});
+function shell(content, cls = '') {
+ content = content.replaceAll('↗', arrowSvg).replaceAll('✳', sunSvg).replaceAll('⌑', calendarSvg);
+ app.innerHTML = `<header class="header"><a href="/" data-link class="brand" aria-label="SYUCAI — главная"><img src="/mark.svg" alt="" width="30" height="38"><span>SYUCAI</span></a><button class="menu-button" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-menu"><span></span><span></span></button><nav id="site-menu" aria-label="Главная навигация" hidden>${link('/', 'Главная')}${link('/about', 'О SYUCAI')}${link('/masters', 'Найти мастера')}${link('/account', 'Кабинет мастера', 'nav-account')}</nav></header><main class="${cls}" id="main">${content}</main><div class="toast" role="status" hidden></div>`;
+ document.querySelector('.menu-button').onclick = () => setMenu(document.querySelector('.menu-button').getAttribute('aria-expanded') !== 'true');
+}
+
 function error(box,message){box.textContent=message;box.hidden=false}
 function statusText(s){return {draft:'Черновик',pending:'На проверке',approved:'Опубликовано',rejected:'Нужны уточнения'}[s]||'Новая анкета'}
-function home(){shell(`<div class="home-form"><form id="calculator" novalidate><div class="entry"><label for="birth"><span class="field-index">01</span> Введите дату рождения</label><div class="input-line"><input id="birth" name="birth" inputmode="numeric" autocomplete="bday" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="${esc(values.date)}" aria-describedby="birth-error"><span class="field-symbol" aria-hidden="true">⌑</span></div><p class="error" id="birth-error" aria-live="polite"></p></div><div class="entry"><label for="name"><span class="field-index">02</span> Введите название / имя</label><div class="input-line"><input id="name" name="name" autocomplete="given-name" placeholder="Your name" maxlength="80" spellcheck="false" value="${esc(values.name)}" aria-describedby="name-error"><button class="field-submit" aria-label="Показать результаты" title="Показать результаты">↗</button></div><p class="error" id="name-error" aria-live="polite"></p></div></form></div>`,'home');
+function home(){shell(`<div class="home-form"><form id="calculator" novalidate><div class="entry"><label for="birth">Введите дату рождения</label><div class="input-line"><input id="birth" name="birth" inputmode="numeric" autocomplete="bday" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="${esc(values.date)}" aria-describedby="birth-error"><span class="field-symbol" aria-hidden="true">⌑</span></div><p class="error" id="birth-error" aria-live="polite"></p></div><div class="entry"><label for="name">Введите название / имя</label><div class="input-line"><input id="name" name="name" autocomplete="given-name" placeholder="Имя латиницей" maxlength="80" spellcheck="false" value="${esc(values.name)}" aria-describedby="name-error"><button class="field-submit" aria-label="Показать результаты" title="Показать результаты">↗</button></div><p class="error" id="name-error" aria-live="polite"></p></div></form></div>`,'home');
  const current=routeId;const date=document.querySelector('#birth'),name=document.querySelector('#name');let timer;
  function check(submit=false){if(routeId!==current)return;values={date:date.value,name:name.value};let ok=true;document.querySelectorAll('.error').forEach(e=>e.textContent='');if(values.date){try{calculateBirth(values.date)}catch(e){ok=false;if(submit||values.date.length===10)error(document.querySelector('#birth-error'),e.message)}}if(values.name){try{calculateName(values.name)}catch(e){ok=false;error(document.querySelector('#name-error'),e.message)}}if(ok&&(submit?(values.date||values.name):(values.date&&values.name)))go('/results');else if(submit&&!values.date&&!values.name){error(document.querySelector('#birth-error'),'Введите дату рождения или имя');date.focus()}}
  date.addEventListener('input',()=>{let s=date.value.replace(/\D/g,'').slice(0,8);date.value=s.slice(0,2)+(s.length>2?'.'+s.slice(2,4):'')+(s.length>4?'.'+s.slice(4):'');values.date=date.value;clearTimeout(timer);timer=setTimeout(()=>check(),900)});
