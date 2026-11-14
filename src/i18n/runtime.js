@@ -1,3 +1,4 @@
+import {catalogState} from '../../shared/translation-catalog.js';
 import source from './source.json';
 import {languages,languageByCode,languageName,sortedLanguages} from './languages.js';
 const catalogs=new Map([['ru',{}]]);
@@ -60,15 +61,14 @@ export async function setLanguage(code){
  pending=true;const button=document.querySelector('#language-button');if(button)button.setAttribute('aria-busy','true');
  try{
   if(code!=='ru'&&!catalogs.has(code)){
-   if(manifest?.languages?.[code]?.status==='unavailable')throw Error('unavailable');
-   const r=await fetch(`/i18n/${encodeURIComponent(code)}.json?v=${source.sourceHash}`,{signal:AbortSignal.timeout(20000)});if(!r.ok)throw Error('unavailable');
+   const r=await fetch(`/i18n/${encodeURIComponent(code)}.json?v=${source.sourceHash}`,{signal:AbortSignal.timeout(20000),cache:'no-cache'});if(!r.ok)throw Error('unavailable');
    const data=await r.json();
-   if(data.locale!==code||data.sourceHash!==source.sourceHash||data.status!=='ready'||!source.strings.every(key=>typeof data.translations?.[key]==='string'&&data.translations[key].length))throw Error('incomplete');
-   catalogs.set(code,data.translations);
+   const state=catalogState(data,source,code);if(state.status==='unavailable')throw Error('unavailable');
+   catalogs.set(code,state.translations);
   }
   const previous=locale;locale=code;try{localStorage.setItem('syucai.language',code)}catch{}
   document.dispatchEvent(new CustomEvent('syucai:languagechange',{detail:{previous,locale}}));
-  mountLanguagePicker();translateDocument();closeLanguages();if(matchMedia('(hover: hover) and (pointer: fine)').matches)document.querySelector('#language-button')?.focus({preventScroll:true});return true;
+  mountLanguagePicker();translateDocument();closeLanguages();if(code!=='ru'&&Object.keys(catalogs.get(code)||{}).length<source.strings.length)toast('Перевод обновляется. Часть новых текстов пока отображается на русском.');if(matchMedia('(hover: hover) and (pointer: fine)').matches)document.querySelector('#language-button')?.focus({preventScroll:true});return true;
  }catch{toast('Перевод временно недоступен. Выбранный язык не изменён.');return false}
  finally{pending=false;document.querySelector('#language-button')?.removeAttribute('aria-busy')}
 }
@@ -80,13 +80,13 @@ export function mountLanguagePicker(){
  const panel=host.querySelector('#language-panel'),search=host.querySelector('#language-search'),list=host.querySelector('.language-list');
  function options(){
   const query=search.value.toLocaleLowerCase(locale).trim();
-  list.innerHTML=sortedLanguages(locale).filter(l=>[l.ru,l.native,l.short,languageName(l,locale)].join(' ').toLocaleLowerCase(locale).includes(query)).map(l=>`<button type="button" class="language-option" role="option" aria-selected="${l.code===locale}" data-language="${l.code}" ${manifest?.languages?.[l.code]?.status==='unavailable'?'disabled title="Перевод пока недоступен"':''}><img class="flag" src="/flags/${l.flag}.svg" alt=""><span class="language-names"><span>${html(languageName(l,locale))}</span><small lang="${l.code}">${html(l.native)}</small></span><span class="language-code">${l.short}</span></button>`).join('');
+  list.innerHTML=sortedLanguages(locale).filter(l=>[l.ru,l.native,l.short,languageName(l,locale)].join(' ').toLocaleLowerCase(locale).includes(query)).map(l=>`<button type="button" class="language-option" role="option" aria-selected="${l.code===locale}" data-language="${l.code}" ${manifest?.languages?.[l.code]?.status==='partial'?'title="Перевод обновляется"':''}><img class="flag" src="/flags/${l.flag}.svg" alt=""><span class="language-names"><span>${html(languageName(l,locale))}</span><small lang="${l.code}">${html(l.native)}</small></span><span class="language-code">${l.short}</span></button>`).join('');
   list.querySelectorAll('[data-language]').forEach(el=>el.onclick=()=>setLanguage(el.dataset.language));
  }
  options();search.oninput=options;
  host.querySelector('#language-button').onclick=()=>{
   const open=panel.hidden;panel.hidden=!open;host.querySelector('#language-button').setAttribute('aria-expanded',String(open));
-  if(open){document.querySelector('#site-menu')?.setAttribute('hidden','');const menu=document.querySelector('.menu-button');menu?.setAttribute('aria-expanded','false');menu?.setAttribute('aria-label',translateText('Открыть меню'));if(matchMedia('(hover: hover) and (pointer: fine)').matches)search.focus()}
+  if(open){options();document.querySelector('#site-menu')?.setAttribute('hidden','');const menu=document.querySelector('.menu-button');menu?.setAttribute('aria-expanded','false');menu?.setAttribute('aria-label',translateText('Открыть меню'));if(matchMedia('(hover: hover) and (pointer: fine)').matches)search.focus()}
  };
  panel.onkeydown=e=>{
   const options=[...list.querySelectorAll('button:not(:disabled)')];const index=options.indexOf(document.activeElement);
@@ -102,7 +102,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('#language-control'))
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('#language-panel')?.hidden===false)closeLanguages(true)});
 export async function initializeTranslations(){
  new MutationObserver(records=>{if(records.some(r=>!r.target.parentElement?.closest('script,style')))schedule()}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});
- try{const r=await fetch(`/i18n/manifest.json?v=${source.sourceHash}`);if(r.ok){const data=await r.json();if(data.sourceHash===source.sourceHash)manifest=data}}catch{}
+ try{const r=await fetch(`/i18n/manifest.json?v=${source.sourceHash}`,{cache:'no-cache'});if(r.ok){const data=await r.json();if(data.sourceHash===source.sourceHash)manifest=data}}catch{}
  let saved;try{saved=localStorage.getItem('syucai.language')}catch{}
  if(saved&&languageByCode(saved)&&saved!=='ru')await setLanguage(saved);else schedule()
 }

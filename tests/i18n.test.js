@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {languages,sortedLanguages,languageByCode} from '../src/i18n/languages.js';
-import {batches,decodeBatch,translateBatch,validCatalog,reusableTranslations} from '../scripts/build-translations.js';
+import {batches,decodeBatch,translateBatch,validCatalog,reusableTranslations,buildTranslations} from '../scripts/build-translations.js';
 import source from '../src/i18n/source.json' with {type:'json'};
 import {existsSync} from 'node:fs';
 test('all requested languages occur once, with flags, explicit codes and alphabetical ordering',()=>{
@@ -27,7 +27,7 @@ test('rate limits back off; unsupported locales do not masquerade as translated 
  const result=await translateBatch(['Ваш город'],'en',{request:async()=>++attempts===1?{status:429,ok:false,headers:{get:()=>null}}:{status:200,ok:true,json:async()=>({sentences:[{trans:'[[SYUCAI_0]]\nYour city'}]})},pause:async n=>pauses.push(n)});
  assert.equal(result['Ваш город'],'Your city');assert.deepEqual(pauses,[2000]);
  await assert.rejects(translateBatch(['Ваш город'],'inh',{request:async()=>({status:400,ok:false})}),/HTTP 400/);
- const translations=Object.fromEntries(source.strings.map(s=>[s,'translated']));
+ const translations=Object.fromEntries(source.strings.map(s=>[s,'translated '+(s.match(/\{\d+\}/g)||[]).join(' ')]));
  assert.equal(validCatalog({locale:'en',sourceHash:source.sourceHash,status:'ready',translations},source,'en'),true);
  delete translations[source.strings[0]];assert.equal(validCatalog({locale:'en',sourceHash:source.sourceHash,status:'ready',translations},source,'en'),false);
  assert.equal(validCatalog({locale:'en',sourceHash:'old',status:'ready',translations},source,'en'),false);
@@ -38,4 +38,20 @@ test('copy updates reuse existing translations by exact source message without r
  const current={sourceHash:'newer',strings:['Мой календарь','Личный год {0}','Общий день {0}','Новая надпись']};
  assert.deepEqual(reusableTranslations(old,current,'en'),{'Мой календарь':'My calendar','Личный год {0}':'Personal year {0}'});
  assert.deepEqual(reusableTranslations(old,current,'fr'),{});
+});
+
+
+test('public GET transport falls back after a provider rejects the request and accepts array responses',async()=>{
+ const urls=[];const translated=await translateBatch(['Ваш город'],'en',{request:async(url,options)=>{
+  const parsed=new URL(url);urls.push(parsed);assert.equal(options.method,undefined);assert.equal(parsed.searchParams.get('client'),'gtx');assert.equal(parsed.searchParams.get('sl'),'ru');assert.equal(parsed.searchParams.get('tl'),'en');
+  if(urls.length===1)return {ok:false,status:403};return {ok:true,status:200,json:async()=>[[['[[SYUCAI_0]]\nYour city','source']]]};
+ },pause:async()=>{}});
+ assert.equal(translated['Ваш город'],'Your city');assert.deepEqual(urls.map(u=>u.hostname),['translate.googleapis.com','translate.google.com']);
+});
+test('catalog recovery rejects changed placeholders and markup while retaining exact messages from failed older builds',async()=>{
+ const {catalogState}=await import('../shared/translation-catalog.js');
+ const current={strings:['Ваш город','Личный день {0}','Новый текст','Другая строка']};
+ const state=catalogState({locale:'en',status:'unavailable',sourceHash:'before-copy-edit',translations:{'Ваш город':'Your city','Личный день {0}':'Personal day','Другая строка':'<script>bad</script>','Удалено':'Deleted'}},current,'en');
+ assert.equal(state.status,'partial');assert.equal(state.translated,1);assert.deepEqual(state.translations,{'Ваш город':'Your city'});
+ assert.equal(catalogState({locale:'de',translations:{'Ваш город':'Wrong locale'}},current,'en').status,'unavailable');
 });

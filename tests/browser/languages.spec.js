@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import source from '../../src/i18n/source.json' with {type:'json'};
 import {languages,sortedLanguages} from '../../src/i18n/languages.js';
 // Synthetic catalogs exercise rendering and input safety without claiming to validate provider quality.
-const labels={en:{'Введите дату рождения':'Enter your date of birth','Введите название / имя':'Enter a name / title','Рассчитать':'Calculate','Результаты расчёта':'Calculation results','О SYUCAI':'About SYUCAI','Личный день':'Personal day','Число имени':'Name number','Найти язык':'Find a language','Язык сайта':'Site language','Изменить данные':'Edit details'},de:{'Введите дату рождения':'Geburtsdatum eingeben','Рассчитать':'Berechnen','Результаты расчёта':'Berechnungsergebnisse'},ar:{'Введите дату рождения':'أدخل تاريخ الميلاد','Рассчитать':'احسب'},fa:{'Введите дату рождения':'تاریخ تولد را وارد کنید','Рассчитать':'محاسبه'}};
+const labels={en:{'Введите дату рождения':'Enter your date of birth','Введите название / имя':'Enter a name / title','Рассчитать':'Calculate','Результаты расчёта':'Calculation results','О SYUCAI':'About SYUCAI','Личный день':'Personal day','Число имени':'Name number','Найти язык':'Find a language','Язык сайта':'Site language','Изменить данные':'Edit details','Перевод обновляется. Часть новых текстов пока отображается на русском.':'Translation is updating. Some new text is temporarily shown in Russian.'},de:{'Введите дату рождения':'Geburtsdatum eingeben','Рассчитать':'Berechnen','Результаты расчёта':'Berechnungsergebnisse'},ar:{'Введите дату рождения':'أدخل تاريخ الميلاد','Рассчитать':'احسب'},fa:{'Введите дату рождения':'تاریخ تولد را وارد کنید','Рассчитать':'محاسبه'}};
 function catalog(locale){return {locale,status:'ready',sourceHash:source.sourceHash,translations:Object.fromEntries(source.strings.map((s,i)=>[s,labels[locale]?.[s]||`${locale} text ${i}${(s.match(/\{\d+\}/g)||[]).join(' ')}`]))}}
 async function mockTranslations(page){
  await page.route('**/i18n/manifest.json*',r=>r.fulfill({json:{sourceHash:source.sourceHash,languages:Object.fromEntries(languages.map(l=>[l.code,{status:'ready'}]))}}));
@@ -41,4 +41,20 @@ test('unavailable or stale catalog leaves current language intact and shows an e
  await page.route('**/i18n/**',r=>r.fulfill({json:{locale:'en',sourceHash:'stale',status:'ready',translations:{}}}));await page.goto('/');await page.locator('#language-button').click();await page.locator('[data-language=en]').click();
  await expect(page.locator('html')).toHaveAttribute('lang','ru');await expect(page.locator('.toast')).toContainText('Перевод временно недоступен');
  expect(await page.evaluate(()=>localStorage.getItem('syucai.language'))).toBeNull();
+});
+
+test('a failed manifest cannot disable every language and preserved exact translations survive new Russian copy',async({page})=>{
+ await page.route('**/i18n/manifest.json*',r=>r.fulfill({json:{sourceHash:source.sourceHash,languages:Object.fromEntries(languages.map(l=>[l.code,{status:l.code==='ru'?'ready':'unavailable'}]))}}));
+ const old=catalog('en');old.status='unavailable';old.sourceHash='before-last-copy-edit';delete old.translations['Мы используем cookies для работы сайта и аналитики.'];
+ await page.route('**/i18n/en.json*',r=>r.fulfill({json:old}));
+ const loaded=page.waitForResponse(r=>r.url().includes('/i18n/manifest.json'));await page.goto('/');await loaded;
+ await page.locator('#birth').fill('24091987');await page.locator('#language-button').click();await expect(page.locator('.language-option:disabled')).toHaveCount(0);
+ await page.locator('[data-language=en]').click();await expect(page.locator('html')).toHaveAttribute('lang','en');await expect(page.locator('label[for=birth]')).toHaveText('Enter your date of birth');await expect(page.locator('#birth')).toHaveValue('24.09.1987');
+ await expect(page.locator('.toast')).toContainText('Some new text is temporarily shown in Russian.');await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','en');
+});
+test('a language can retry loading after a transient catalog error without another deployment',async({page})=>{
+ await page.route('**/i18n/manifest.json*',r=>r.fulfill({json:{sourceHash:source.sourceHash,languages:{en:{status:'unavailable'}}}}));let attempts=0;
+ await page.route('**/i18n/en.json*',r=>++attempts===1?r.fulfill({status:503,json:{error:'Temporary failure'}}):r.fulfill({json:catalog('en')}));
+ await page.goto('/');await page.locator('#language-button').click();await page.locator('[data-language=en]').click();await expect(page.locator('.toast')).toContainText('Перевод временно недоступен');await expect(page.locator('html')).toHaveAttribute('lang','ru');
+ await page.locator('#language-button').click();await page.locator('[data-language=en]').click();await expect(page.locator('html')).toHaveAttribute('lang','en');expect(attempts).toBe(2);
 });
