@@ -5,7 +5,8 @@ import {batches,decodeBatch,translateBatch,validCatalog,reusableTranslations,bui
 import source from '../src/i18n/source.json' with {type:'json'};
 import {existsSync} from 'node:fs';
 test('all requested languages occur once, with flags, explicit codes and alphabetical ordering',()=>{
- assert.equal(languages.length,35);assert.equal(new Set(languages.map(l=>l.code)).size,35);
+ assert.equal(languages.length,34);assert.equal(new Set(languages.map(l=>l.code)).size,34);
+ assert.equal(languageByCode('ce'),undefined);
  assert.equal(languages.filter(l=>l.code==='cs').length,1);
  assert.equal(languageByCode('kk').short,'KZ');assert.equal(languageByCode('uz').short,'UZ');assert.equal(languageByCode('en').short,'ENG');assert.equal(languageByCode('uk').short,'UKR');
  assert.equal(languageByCode('ro-MD').target,'ro');assert.equal(languageByCode('inh').native,'ГӀалгӀай');
