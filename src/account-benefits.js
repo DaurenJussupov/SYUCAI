@@ -12,6 +12,8 @@ export function membershipNotice(trial){
 }
 export function mountPromotionPanel({api,profile,promotions=[],esc}){
  const root=document.querySelector('#promotion-management');if(!root)return;
+ root.hidden=!['pending','approved','rejected'].includes(profile.status);
+ if(root.hidden){root.replaceChildren();return}
  let open=false,days=1,notice='';
  function render(){
   const current=promotions.find(p=>['pending','active'].includes(p.status));
