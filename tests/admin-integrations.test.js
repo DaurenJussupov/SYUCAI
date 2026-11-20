@@ -17,7 +17,7 @@ const response=(value,status=200)=>new Response(JSON.stringify(value),{status,he
 
 test('additive migration preserves previous profiles, files and published reviews',()=>{
  const e=database({migrate:false});profile(e);account(e,reviewer);e.sqlite.prepare('INSERT INTO reviews(id,master_id,author_id,author,rating,text) VALUES(?,?,?,?,?,?)').run('review',userId,reviewer,'Reviewer',5,'Original review');
- e.sqlite.exec(readFileSync('migrations/0002_admin_integrations.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0003_promotions.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0004_email_verification.sql','utf8'));assert.equal(e.sqlite.prepare('SELECT status FROM profiles').get().status,'approved');assert.equal(e.sqlite.prepare('SELECT count(*) n FROM files').get().n,2);assert.equal(e.sqlite.prepare('SELECT status FROM reviews').get().status,'approved');e.close();
+ e.sqlite.exec(readFileSync('migrations/0002_admin_integrations.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0003_promotions.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0004_email_verification.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0005_world_locations.sql','utf8'));assert.equal(e.sqlite.prepare('SELECT country_code,city_name FROM profiles').get().country_code,'KZ');assert.equal(e.sqlite.prepare('SELECT status FROM profiles').get().status,'approved');assert.equal(e.sqlite.prepare('SELECT count(*) n FROM files').get().n,2);assert.equal(e.sqlite.prepare('SELECT status FROM reviews').get().status,'approved');e.close();
 });
 test('admin sessions use HttpOnly cookies, reject CSRF and are revoked by secret rotation',async()=>{
  const e=fixture();try{

@@ -1,3 +1,5 @@
+import {countryName,countryCode} from '../shared/countries.js';
+import {cities} from '../shared/cities.js';
 import {getSetting,setSetting,hash,hex,adminCookie,audit} from './admin-auth.js';
 const encoder=new TextEncoder();
 const bytes=value=>Uint8Array.from(atob(value),c=>c.charCodeAt(0));
@@ -55,7 +57,7 @@ export async function createResources(e){
 export async function syncAccount(e,id){
  const token=await googleToken(e),request=(url,options)=>googleFetch(e,url,options,token);
  const sheet=await getSetting(e,'google_sheet_id'),folder=await getSetting(e,'google_folder_id');if(!sheet||!folder)throw Error('Создайте таблицу и папку Google');
- const p=await e.DB.prepare('SELECT a.id,a.email,p.name,p.city_id,p.country,p.phone,p.credentials,p.bio,p.status,p.updated_at,p.moderation_note FROM accounts a LEFT JOIN profiles p ON p.id=a.id WHERE a.id=?').bind(id).first();if(!p)throw Error('Аккаунт не найден');
+ const p=await e.DB.prepare('SELECT a.id,a.email,p.name,p.city_id,p.city_name,p.country_code,p.country,p.phone,p.credentials,p.bio,p.status,p.updated_at,p.moderation_note FROM accounts a LEFT JOIN profiles p ON p.id=a.id WHERE a.id=?').bind(id).first();if(!p)throw Error('Аккаунт не найден');
  if(!p.name){const draft=await e.DB.prepare('SELECT data FROM profile_drafts WHERE account_id=?').bind(id).first();if(draft){try{Object.assign(p,JSON.parse(draft.data))}catch{}}}
  const files=(await e.DB.prepare('SELECT f.*,g.drive_id,g.uploaded FROM files f LEFT JOIN google_file_links g ON g.file_id=f.id WHERE f.account_id=?').bind(id).all()).results;const links=[];
  for(const f of files){let driveId=f.drive_id,uploaded=!!f.uploaded;
@@ -74,7 +76,7 @@ export async function syncAccount(e,id){
  // Resolve the account ID on every write so manually sorted rows cannot overwrite another master.
  const column=await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheet}/values/A:A`);
  const found=(column.values||[]).findIndex(v=>v[0]===id),row=found>=0?found+1:null;
- const values=[[p.id,p.name,p.email,p.city_id,p.country,p.phone,p.credentials,p.bio,p.status||'not_submitted',p.updated_at,links.join('\n'),p.moderation_note].map(sheetSafe)];
+ const values=[[p.id,p.name,p.email,p.city_name||p.city_text||cities.find(c=>c.id===p.city_id)?.name||p.city_id,countryName(countryCode(p.country_code||p.country)),p.phone,p.credentials,p.bio,p.status||'not_submitted',p.updated_at,links.join('\n'),p.moderation_note].map(sheetSafe)];
  let n=row;
  if(row)await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheet}/values/A${row}:L${row}?valueInputOption=RAW`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({values})});
  else{const result=await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheet}/values/A:L:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({values})});

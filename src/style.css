@@ -112,6 +112,13 @@ details p { font-size: 12px; color: #73737e; margin: 15px 0 0; line-height: 1.95
 .search-form { display: grid; grid-template-columns: 1fr auto; gap: 12px; max-width: 660px; }
 .search-form .form-label { grid-column: 1/-1; margin: 0; }
 .search-form .error { grid-column: 1/-1; }
+.location-fields { min-width: 0; }
+.location-fields .control { width: 100%; min-width: 0; }
+.master-search-form { grid-template-columns: minmax(0,1fr); }
+.master-search-form .location-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 0 16px; }
+.master-search-form .location-fields .form-label { grid-column: auto; }
+.master-search-form .location-fields .fineprint { grid-column: 1/-1; }
+@media(max-width:680px) { .master-search-form .location-fields { grid-template-columns: minmax(0,1fr); } }
 .control { display: block; width: 100%; border: 1px solid #e3e3e9; border-radius: 10px; background: #fafafa; min-height: 48px; padding: 12px 15px; color: var(--ink); font-size: 13px; line-height: 1.7; }
 .control::placeholder { color: #9c9ca5; }
 .form-label { display: block; font-size: 12px; font-weight: 500; color: #666670; margin: 23px 0 10px; }

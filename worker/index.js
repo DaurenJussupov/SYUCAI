@@ -1,3 +1,4 @@
+import {resolveLocation} from '../shared/locations.js';
 import {sendVerification,handleEmailVerification} from './email-verification.js';
 import {trialPeriod} from '../shared/membership.js';
 import {handlePromotions,ownPromotions} from './promotions.js';
@@ -18,7 +19,7 @@ async function body(r){if(+(r.headers.get('content-length')||0)>20000)fail('Сл
 async function user(r,e){const token=r.headers.get('cookie')?.match(/(?:^|;\s*)session=([a-f0-9]+)/)?.[1];if(!token)return null;return e.DB.prepare('SELECT a.id,a.email,a.created_at,a.email_verified_at,a.email_verification_sent_at FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE s.token=? AND s.expires>?').bind(await hash(token),Date.now()).first()}
 async function required(r,e){const u=await user(r,e);if(!u)fail('Войдите в аккаунт',401);return u}
 async function limit(r,e,type,max=15){const ip=r.headers.get('CF-Connecting-IP')||'local',key=await hash(`${type}:${ip}:${Math.floor(Date.now()/3600000)}`);await e.DB.prepare('DELETE FROM rate_limits WHERE expires<?').bind(Date.now()).run();const result=await e.DB.prepare('INSERT INTO rate_limits(key,hits,expires) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET hits=hits+1 RETURNING hits').bind(key,Date.now()+3600000).first();if(result.hits>max)fail('Слишком много попыток. Попробуйте через час.',429)}
-const select='SELECT p.id,p.name,p.city_id,p.country,p.lat,p.lon,p.bio,p.credentials,p.photo,COALESCE(AVG(r.rating),0) rating,COUNT(r.id) review_count,EXISTS(SELECT 1 FROM promotions b WHERE b.master_id=p.id AND b.status=\'active\' AND b.ends_at>CURRENT_TIMESTAMP) promoted,(SELECT SUBSTR(text,1,180) FROM reviews latest WHERE latest.master_id=p.id AND latest.status=\'approved\' ORDER BY latest.created_at DESC LIMIT 1) review_preview FROM profiles p LEFT JOIN reviews r ON r.master_id=p.id AND r.status=\'approved\'';
+const select='SELECT p.id,p.name,p.city_id,p.city_name,p.country,p.country_code,p.coordinates_known,CASE WHEN p.coordinates_known=1 THEN p.lat ELSE NULL END lat,CASE WHEN p.coordinates_known=1 THEN p.lon ELSE NULL END lon,p.bio,p.credentials,p.photo,COALESCE(AVG(r.rating),0) rating,COUNT(r.id) review_count,EXISTS(SELECT 1 FROM promotions b WHERE b.master_id=p.id AND b.status=\'active\' AND b.ends_at>CURRENT_TIMESTAMP) promoted,(SELECT SUBSTR(text,1,180) FROM reviews latest WHERE latest.master_id=p.id AND latest.status=\'approved\' ORDER BY latest.created_at DESC LIMIT 1) review_preview FROM profiles p LEFT JOIN reviews r ON r.master_id=p.id AND r.status=\'approved\'';
 async function api(r,e){
  const url=new URL(r.url),path=url.pathname,method=r.method;
  if(!['GET','HEAD'].includes(method)){
@@ -48,15 +49,15 @@ async function api(r,e){
  if(path==='/api/me'&&method==='GET'){const u=await user(r,e);if(!u)return json({user:null});return json({user:u,trial:trialPeriod(u.created_at),promotions:await ownPromotions(e,u.id),profile:await e.DB.prepare('SELECT * FROM profiles WHERE id=?').bind(u.id).first(),draft:await e.DB.prepare('SELECT data FROM profile_drafts WHERE account_id=?').bind(u.id).first(),files:(await e.DB.prepare('SELECT id,kind,mime,name FROM files WHERE account_id=?').bind(u.id).all()).results})}
  if(path==='/api/profile/draft'&&method==='PUT'){
   const u=await required(r,e),b=await body(r),draft={};
-  for(const [key,max] of Object.entries({name:100,city_id:50,city_text:120,phone:30,bio:4000,credentials:1000}))if(typeof b[key]==='string')draft[key]=b[key].slice(0,max);
+  for(const [key,max] of Object.entries({name:100,city_id:200,city_text:120,city_name:120,country_code:2,phone:30,bio:4000,credentials:1000}))if(typeof b[key]==='string')draft[key]=b[key].slice(0,max);
   await e.DB.prepare('INSERT INTO profile_drafts(account_id,data) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP').bind(u.id,JSON.stringify(draft)).run();await enqueue(e,u.id);return json({ok:true});
  }
  if(path==='/api/profile'&&method==='PUT'){
-  const u=await required(r,e),b=await body(r),city=cities.find(c=>c.id===b.city_id);if(!city)fail('Выберите город из списка');
+  const u=await required(r,e),b=await body(r),city=resolveLocation(b);
   const name=text(b.name,3,100,'Имя'),bio=text(b.bio,80,4000,'Описание'),credentials=text(b.credentials,5,1000,'Квалификация'),phone=text(b.phone,10,16,'WhatsApp').replace(/^\+/,'');if(!/^\d{10,15}$/.test(phone))fail('Телефон: от 10 до 15 цифр с кодом страны');
   const files=(await e.DB.prepare('SELECT * FROM files WHERE account_id=?').bind(u.id).all()).results;
   const photo=files.find(f=>f.kind==='photo');if(!photo||!files.some(f=>f.kind==='document'))fail('Загрузите фото и хотя бы один диплом');
-  await e.DB.prepare(`INSERT INTO profiles(id,name,city_id,country,lat,lon,bio,credentials,phone,photo,status) VALUES(?,?,?,?,?,?,?,?,?,?,'pending') ON CONFLICT(id) DO UPDATE SET name=excluded.name,city_id=excluded.city_id,country=excluded.country,lat=excluded.lat,lon=excluded.lon,bio=excluded.bio,credentials=excluded.credentials,phone=excluded.phone,photo=excluded.photo,status='pending',moderation_note='',updated_at=CURRENT_TIMESTAMP`).bind(u.id,name,city.id,city.country,city.lat,city.lon,bio,credentials,phone,photo.id).run();await e.DB.prepare('DELETE FROM profile_drafts WHERE account_id=?').bind(u.id).run();await enqueue(e,u.id);return json({ok:true,status:'pending'});
+  await e.DB.prepare(`INSERT INTO profiles(id,name,city_id,country,lat,lon,bio,credentials,phone,photo,status,city_name,country_code,coordinates_known) VALUES(?,?,?,?,?,?,?,?,?,?,'pending',?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,city_id=excluded.city_id,city_name=excluded.city_name,country=excluded.country,country_code=excluded.country_code,lat=excluded.lat,lon=excluded.lon,coordinates_known=excluded.coordinates_known,bio=excluded.bio,credentials=excluded.credentials,phone=excluded.phone,photo=excluded.photo,status='pending',moderation_note='',updated_at=CURRENT_TIMESTAMP`).bind(u.id,name,city.id,city.country,city.lat??0,city.lon??0,bio,credentials,phone,photo.id,city.name,city.country_code,city.lat!==null?1:0).run();await e.DB.prepare('DELETE FROM profile_drafts WHERE account_id=?').bind(u.id).run();await enqueue(e,u.id);return json({ok:true,status:'pending'});
  }
  if(path==='/api/files'&&method==='POST'){
   const u=await required(r,e);await limit(r,e,'upload',40);
@@ -81,8 +82,8 @@ async function api(r,e){
   return new Response(obj.body,{headers:{'Content-Type':file.mime,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':file.kind==='document'?'attachment':'inline'}});
  }
  if(path==='/api/masters'&&method==='GET'){
-  const city=cities.find(c=>c.id===url.searchParams.get('city'));if(!city)fail('Выберите город из списка');
-  const rows=(await e.DB.prepare(select+" WHERE p.status='approved' AND p.country=? GROUP BY p.id").bind(city.country).all()).results;
+  const legacy=url.searchParams.get('city'),city=legacy?cities.find(c=>c.id===legacy):resolveLocation({country_code:url.searchParams.get('country_code'),city_name:url.searchParams.get('city_name')||''},{requireCity:false});if(!city)fail('Выберите страну и укажите город');
+  const rows=(await e.DB.prepare(select+" WHERE p.status='approved' AND (p.country_code=? OR (p.country_code='' AND p.country=?)) GROUP BY p.id").bind(city.country_code,city.country).all()).results;
   return json({masters:rankMasters(rows,city),city});
  }
  const match=path.match(/^\/api\/masters\/([a-f0-9-]+)(\/reviews)?$/);

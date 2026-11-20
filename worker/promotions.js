@@ -20,7 +20,7 @@ export async function handlePromotions(r,e,{required,body,limit}){
 }
 export async function listPromotionRequests(e){
  await expirePromotions(e);
- return (await e.DB.prepare("SELECT b.*,p.name,p.city_id,p.status profile_status,a.email FROM promotions b JOIN profiles p ON p.id=b.master_id JOIN accounts a ON a.id=p.id ORDER BY CASE b.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END,b.created_at DESC LIMIT 200").all()).results;
+ return (await e.DB.prepare("SELECT b.*,p.name,p.city_id,p.city_name,p.country_code,p.status profile_status,a.email FROM promotions b JOIN profiles p ON p.id=b.master_id JOIN accounts a ON a.id=p.id ORDER BY CASE b.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END,b.created_at DESC LIMIT 200").all()).results;
 }
 export async function moderatePromotion(e,data){
  const {id,action}=data||{};if(typeof id!=='string'||!['activate','reject','cancel'].includes(action))fail('Проверьте действие с продвижением');
