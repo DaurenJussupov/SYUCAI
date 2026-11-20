@@ -24,7 +24,7 @@ function walk(node){
  }
 }
 function data(value){if(typeof value==='string')add(value);else if(value&&typeof value==='object')Object.values(value).forEach(data)}
-for(const file of ['src/main.js','src/about.js','src/admin.js','src/analytics.js','src/calendar.js','src/calendar-calculations.js','src/calculations.js','worker/index.js','worker/admin.js','worker/admin-auth.js','worker/google.js','worker/analytics.js'])walk(parse(await readFile(file,'utf8'),{sourceType:'module',ecmaVersion:'latest'}));
+for(const file of ['src/main.js','src/password-controls.js','src/email-verification.js','src/account-benefits.js','src/promotion-admin.js','src/about.js','src/admin.js','src/analytics.js','src/calendar.js','src/calendar-calculations.js','src/calculations.js','worker/index.js','worker/email-verification.js','worker/promotions.js','worker/admin.js','worker/admin-auth.js','worker/google.js','worker/analytics.js'])walk(parse(await readFile(file,'utf8'),{sourceType:'module',ecmaVersion:'latest'}));
 for(const file of ['src/birth-data.json','src/name-data.json','src/calendar-data.json'])data(JSON.parse(await readFile(file,'utf8')));
 for(const city of cities){add(city.name);add(city.country)}
 for(const text of ['Язык сайта','Выбрать язык','Найти язык','Загрузка перевода…','Перевод временно недоступен. Выбранный язык не изменён.','Перевод пока недоступен','Перевод обновляется','Перевод обновляется. Часть новых текстов пока отображается на русском.','Закрыть выбор языка'])add(text);
@@ -33,5 +33,7 @@ for(const text of ['Документ: {0} ↓','Фото: {0} ↓','{0} км','�
 const strings=[...messages].sort();
 const sourceHash=createHash('sha256').update(JSON.stringify(strings)).digest('hex');
 await mkdir('src/i18n',{recursive:true});
-await writeFile('src/i18n/source.json',JSON.stringify({sourceHash,strings},null,2)+'\n');
+const output=JSON.stringify({sourceHash,strings},null,2)+'\n';
+// An unchanged catalog must not restart Wrangler's watched custom build.
+if(await readFile('src/i18n/source.json','utf8').catch(()=>null)!==output)await writeFile('src/i18n/source.json',output);
 console.log(`Translation source: ${strings.length} messages; ${strings.reduce((n,s)=>n+s.length,0)} characters.`);

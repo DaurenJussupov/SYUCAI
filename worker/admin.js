@@ -1,3 +1,5 @@
+import {emailConfigured,emailSender,emailSite} from './email-verification.js';
+import {listPromotionRequests,moderatePromotion} from './promotions.js';
 import {isAdmin,requireAdmin,json,hash,hex,equal,adminCookie,sessionCookie,getSetting,setSetting,audit,enqueue} from './admin-auth.js';
 import {googleConfigured,connectGoogle,googleCallback,createResources,processSync,analyticsAccounts,createAnalytics} from './google.js';
 import {statistics} from './analytics.js';
@@ -13,10 +15,12 @@ export async function handleAdmin(r,e,{body,limit}){
  if(path==='/api/admin/session'&&method==='GET')return json({authenticated:authorized,configured:!!e.ADMIN_TOKEN});
  requireAdmin(authorized);
  if(path==='/api/admin/logout'&&method==='POST'){const token=adminCookie(r);if(token)await e.DB.prepare('DELETE FROM admin_sessions WHERE token=?').bind(await hash(token)).run();return json({ok:true},200,{'Set-Cookie':sessionCookie(r,'',0)})}
+ if(path==='/api/admin/promotions'&&method==='GET')return json({promotions:await listPromotionRequests(e)});
+ if(path==='/api/admin/promotions'&&method==='POST')return json(await moderatePromotion(e,await body(r)));
  if(path==='/api/admin/stats'&&method==='GET'){const days=[7,30,90].includes(Number(url.searchParams.get('days')))?Number(url.searchParams.get('days')):30;return json(await statistics(e,days))}
  if(path==='/api/admin/applications'&&method==='GET'){
   const offset=Math.max(0,Number(url.searchParams.get('offset'))||0);
-  const rows=(await e.DB.prepare("SELECT a.id,a.email,a.created_at,p.name,p.city_id,p.country,p.bio,p.credentials,p.phone,p.photo,p.updated_at,p.moderation_note,COALESCE(p.status,'not_submitted') status,d.data draft,s.status sync_status,s.last_error sync_error FROM accounts a LEFT JOIN profiles p ON p.id=a.id LEFT JOIN profile_drafts d ON d.account_id=a.id LEFT JOIN sync_jobs s ON s.account_id=a.id ORDER BY CASE WHEN p.status='pending' THEN 0 WHEN p.id IS NULL THEN 1 ELSE 2 END,COALESCE(p.updated_at,a.created_at) DESC LIMIT 50 OFFSET ?").bind(offset).all()).results;
+  const rows=(await e.DB.prepare("SELECT a.id,a.email,a.created_at,a.email_verified_at,a.email_verification_sent_at,p.name,p.city_id,p.country,p.bio,p.credentials,p.phone,p.photo,p.updated_at,p.moderation_note,COALESCE(p.status,'not_submitted') status,d.data draft,s.status sync_status,s.last_error sync_error FROM accounts a LEFT JOIN profiles p ON p.id=a.id LEFT JOIN profile_drafts d ON d.account_id=a.id LEFT JOIN sync_jobs s ON s.account_id=a.id ORDER BY CASE WHEN p.status='pending' THEN 0 WHEN p.id IS NULL THEN 1 ELSE 2 END,COALESCE(p.updated_at,a.created_at) DESC LIMIT 50 OFFSET ?").bind(offset).all()).results;
   const files=rows.length?(await e.DB.prepare(`SELECT id,account_id,kind,mime,name FROM files WHERE account_id IN (${rows.map(()=>'?').join(',')})`).bind(...rows.map(r=>r.id)).all()).results:[];
   for(const row of rows){row.files=files.filter(f=>f.account_id===row.id);if(row.draft){try{row.draft=JSON.parse(row.draft)}catch{row.draft=null}}}
   const total=await e.DB.prepare('SELECT COUNT(*) n FROM accounts').first();return json({applications:rows,total:total.n,offset});
@@ -26,7 +30,7 @@ export async function handleAdmin(r,e,{body,limit}){
   const b=await body(r);if(!['approved','rejected'].includes(b.status)||typeof b.id!=='string')return json({error:'Проверьте статус отзыва'},400);
   await e.DB.prepare('UPDATE reviews SET status=? WHERE id=?').bind(b.status,b.id).run();await audit(e,'review_'+b.status,b.id);return json({ok:true});
  }
- if(path==='/api/admin/settings'&&method==='GET')return json({google:{configured:googleConfigured(e),connected:!!await getSetting(e,'google_tokens'),folder:await getSetting(e,'google_folder_id'),sheet:await getSetting(e,'google_sheet_id')},measurementId:await getSetting(e,'ga_measurement_id')||e.GA_MEASUREMENT_ID||'',propertyId:await getSetting(e,'ga_property_id'),redirectUri:new URL('/api/admin/google/callback',r.url).href,sync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM sync_jobs GROUP BY status').all()).results});
+ if(path==='/api/admin/settings'&&method==='GET')return json({email:{configured:emailConfigured(e),from:emailSender(e),siteUrl:emailSite(e)},google:{configured:googleConfigured(e),connected:!!await getSetting(e,'google_tokens'),folder:await getSetting(e,'google_folder_id'),sheet:await getSetting(e,'google_sheet_id')},measurementId:await getSetting(e,'ga_measurement_id')||e.GA_MEASUREMENT_ID||'',propertyId:await getSetting(e,'ga_property_id'),redirectUri:new URL('/api/admin/google/callback',r.url).href,sync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM sync_jobs GROUP BY status').all()).results});
  if(path==='/api/admin/settings'&&method==='PUT'){
   const b=await body(r),measurement=String(b.measurementId||'').trim().toUpperCase(),property=String(b.propertyId||'').trim();
   if(measurement&&!/^G-[A-Z0-9]{4,20}$/.test(measurement))return json({error:'Идентификатор Google Analytics должен иметь вид G-…'},400);if(property&&!/^\d{1,20}$/.test(property))return json({error:'ID ресурса GA4 должен содержать только цифры'},400);

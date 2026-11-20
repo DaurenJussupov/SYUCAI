@@ -8,6 +8,16 @@ async function mockTranslations(page){
  await page.route('**/i18n/manifest.json*',r=>r.fulfill({json:{sourceHash:source.sourceHash,languages:Object.fromEntries(languages.map(l=>[l.code,{status:'ready'}]))}}));
  await page.route(/\/i18n\/(?!manifest)[^/?]+\.json/,r=>{const code=new URL(r.request().url()).pathname.split('/').at(-1).replace('.json','');return r.fulfill({json:catalog(code)})});
 }
+test('registration, email status, trial and promotion controls translate without Russian interface remnants',async({page})=>{
+ await mockTranslations(page);await page.setViewportSize({width:390,height:844});
+ let signedIn=false;
+ await page.route('**/api/me',r=>r.fulfill({json:signedIn?{user:{id:'test',email:'test@example.test'},profile:{status:'approved',city_id:'almaty',name:'Test Master',credentials:'Diploma',bio:'Test profile'},files:[],trial:{active:true,endsAt:'2027-02-21T00:00:00.000Z'},promotions:[{days:2,status:'active',ends_at:'2026-11-23 00:00:00'}]}:{user:null}}));
+ await page.goto('/account');await page.locator('#language-button').click();await page.locator('[data-language=en]').click();await expect(page.locator('html')).toHaveAttribute('lang','en');
+ expect(await page.locator('main').innerText()).not.toMatch(/[А-Яа-яЁё]/);
+ signedIn=true;await page.reload();await expect(page.locator('#promotion-toggle')).toBeVisible();await page.locator('#promotion-toggle').click();await expect(page.locator('html')).toHaveAttribute('lang','en');
+ expect(await page.locator('main').innerText()).not.toMatch(/[А-Яа-яЁё]/);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
 test('language picker is before burger, lists every language once in alphabetical order and filters',async({page})=>{
  await mockTranslations(page);await page.goto('/');
  await page.locator('#language-button').click();await expect(page.locator('.language-option')).toHaveCount(34);await expect(page.locator('[data-language=ce]')).toHaveCount(0);

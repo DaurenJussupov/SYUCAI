@@ -2,10 +2,10 @@
 import {currentLanguage,translateDocument} from './i18n/runtime.js';
 const consentKey='syucai-analytics-consent';
 let config={},initialized=false,page='',started=0,session='',gaId='';
-const allowed=new Set(['page_view','calculation','calendar_open','calendar_day','master_search','master_view','contact_open','whatsapp_click','registration','profile_submit','review_submit','engagement','error']);
+const allowed=new Set(['page_view','calculation','calendar_open','calendar_day','master_search','master_view','contact_open','whatsapp_click','registration','profile_submit','review_submit','promotion_request','engagement','error']);
 const read=(storage,key)=>{try{return storage.getItem(key)}catch{return null}};
 const write=(storage,key,value)=>{try{storage.setItem(key,value)}catch{}};
-const permitted=()=>read(localStorage,consentKey)==='yes'&&location.pathname!=='/admin';
+const permitted=()=>read(localStorage,consentKey)==='yes'&&!['/admin','/verify-email'].includes(location.pathname);
 const safePath=path=>/^\/masters\/[a-f0-9-]{36}$/.test(path)?'/masters/:id':['/','/results','/calendar','/about','/masters','/account','/privacy'].includes(path)?path:'';
 const label=value=>String(value||'').replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,60);
 function attribution(){
@@ -44,7 +44,7 @@ function revoke(){
 }
 export function showConsent(force=true){
  let box=document.querySelector('#analytics-consent');
- if(location.pathname==='/admin'||(!force&&read(localStorage,consentKey))){box?.remove();return}
+ if(['/admin','/verify-email'].includes(location.pathname)||(!force&&read(localStorage,consentKey))){box?.remove();return}
  if(box)return;
  box=document.createElement('aside');box.id='analytics-consent';box.className='analytics-consent';box.setAttribute('aria-label','Настройки cookies');
  box.innerHTML='<p>Мы используем cookies для работы сайта и аналитики.</p><div><button type="button" class="button" data-consent="yes">Принять cookies</button><button type="button" class="button secondary" data-consent="no">Только необходимые</button></div><p class="cookie-consent-note">Нажимая «Принять cookies», вы даёте согласие на использование аналитических cookies и обработку данных для аналитики посещений. <a data-link href="/privacy">Подробнее</a></p>';

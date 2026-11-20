@@ -1,3 +1,6 @@
+import {sendVerification,handleEmailVerification} from './email-verification.js';
+import {trialPeriod} from '../shared/membership.js';
+import {handlePromotions,ownPromotions} from './promotions.js';
 import {isAdmin,audit,enqueue} from './admin-auth.js';
 import {handleAdmin} from './admin.js';
 import {collectEvent,publicConfig} from './analytics.js';
@@ -12,24 +15,29 @@ async function password(value,salt){const key=await crypto.subtle.importKey('raw
 function equal(a,b){if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
 function text(v,min,max,label){if(typeof v!=='string'||v.trim().length<min||v.trim().length>max)fail(`Проверьте поле «${label}»`);return v.trim()}
 async function body(r){if(+(r.headers.get('content-length')||0)>20000)fail('Слишком большой запрос',413);try{return await r.json()}catch{fail('Некорректный запрос')}}
-async function user(r,e){const token=r.headers.get('cookie')?.match(/(?:^|;\s*)session=([a-f0-9]+)/)?.[1];if(!token)return null;return e.DB.prepare('SELECT a.id,a.email FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE s.token=? AND s.expires>?').bind(await hash(token),Date.now()).first()}
+async function user(r,e){const token=r.headers.get('cookie')?.match(/(?:^|;\s*)session=([a-f0-9]+)/)?.[1];if(!token)return null;return e.DB.prepare('SELECT a.id,a.email,a.created_at,a.email_verified_at,a.email_verification_sent_at FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE s.token=? AND s.expires>?').bind(await hash(token),Date.now()).first()}
 async function required(r,e){const u=await user(r,e);if(!u)fail('Войдите в аккаунт',401);return u}
 async function limit(r,e,type,max=15){const ip=r.headers.get('CF-Connecting-IP')||'local',key=await hash(`${type}:${ip}:${Math.floor(Date.now()/3600000)}`);await e.DB.prepare('DELETE FROM rate_limits WHERE expires<?').bind(Date.now()).run();const result=await e.DB.prepare('INSERT INTO rate_limits(key,hits,expires) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET hits=hits+1 RETURNING hits').bind(key,Date.now()+3600000).first();if(result.hits>max)fail('Слишком много попыток. Попробуйте через час.',429)}
-const select='SELECT p.id,p.name,p.city_id,p.country,p.lat,p.lon,p.bio,p.credentials,p.photo,COALESCE(AVG(r.rating),0) rating,COUNT(r.id) review_count,(SELECT SUBSTR(text,1,180) FROM reviews latest WHERE latest.master_id=p.id AND latest.status=\'approved\' ORDER BY latest.created_at DESC LIMIT 1) review_preview FROM profiles p LEFT JOIN reviews r ON r.master_id=p.id AND r.status=\'approved\'';
+const select='SELECT p.id,p.name,p.city_id,p.country,p.lat,p.lon,p.bio,p.credentials,p.photo,COALESCE(AVG(r.rating),0) rating,COUNT(r.id) review_count,EXISTS(SELECT 1 FROM promotions b WHERE b.master_id=p.id AND b.status=\'active\' AND b.ends_at>CURRENT_TIMESTAMP) promoted,(SELECT SUBSTR(text,1,180) FROM reviews latest WHERE latest.master_id=p.id AND latest.status=\'approved\' ORDER BY latest.created_at DESC LIMIT 1) review_preview FROM profiles p LEFT JOIN reviews r ON r.master_id=p.id AND r.status=\'approved\'';
 async function api(r,e){
  const url=new URL(r.url),path=url.pathname,method=r.method;
  if(!['GET','HEAD'].includes(method)){
   const origin=r.headers.get('origin');if(!origin||origin!==url.origin)fail('Запрос с другого сайта запрещён',403);
  }
  const admin=await handleAdmin(r,e,{body,limit});if(admin)return admin;
+ const emailVerification=await handleEmailVerification(r,e,{required,body,limit});if(emailVerification)return emailVerification;
+ const promotion=await handlePromotions(r,e,{required,body,limit});if(promotion)return promotion;
  if(path==='/api/public-config'&&method==='GET')return json(await publicConfig(e));
  if(path==='/api/events'&&method==='POST'){await limit(r,e,'analytics',6000);return collectEvent(r,e,await body(r))}
  if(path==='/api/auth/register'&&method==='POST'){
   await limit(r,e,'register',8);const b=await body(r),email=text(b.email,5,254,'Email').toLowerCase(),pass=text(b.password,10,128,'Пароль');
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Введите корректный email');
+  if(typeof b.passwordConfirm!=='string'||!b.passwordConfirm)fail('Повторите пароль');
+  if(b.passwordConfirm!==b.password)fail('Пароли не совпадают');
   const salt=crypto.randomUUID(),id=crypto.randomUUID();
   try{await e.DB.prepare('INSERT INTO accounts(id,email,password,salt) VALUES(?,?,?,?)').bind(id,email,await password(pass,salt),salt).run()}catch(err){if(String(err).includes('UNIQUE'))fail('Этот email уже зарегистрирован',409);throw err}
-  return loginSession(r,e,{id,email});
+  let verification;try{verification=await sendVerification(e,{id,email})}catch{verification={sent:false,configured:!!e.RESEND_API_KEY}}
+  return loginSession(r,e,{id,email},{verification});
  }
  if(path==='/api/auth/login'&&method==='POST'){
   await limit(r,e,'login');const b=await body(r),email=text(b.email,5,254,'Email').toLowerCase(),pass=text(b.password,1,128,'Пароль');
@@ -37,7 +45,7 @@ async function api(r,e){
   if(!a||!equal(digest,a.password))fail('Неверный email или пароль',401);return loginSession(r,e,a);
  }
  if(path==='/api/auth/logout'&&method==='POST'){const token=r.headers.get('cookie')?.match(/(?:^|;\s*)session=([a-f0-9]+)/)?.[1];if(token)await e.DB.prepare('DELETE FROM sessions WHERE token=?').bind(await hash(token)).run();return json({ok:true},200,{'Set-Cookie':cookie(r,'',0)})}
- if(path==='/api/me'&&method==='GET'){const u=await user(r,e);if(!u)return json({user:null});return json({user:u,profile:await e.DB.prepare('SELECT * FROM profiles WHERE id=?').bind(u.id).first(),draft:await e.DB.prepare('SELECT data FROM profile_drafts WHERE account_id=?').bind(u.id).first(),files:(await e.DB.prepare('SELECT id,kind,mime,name FROM files WHERE account_id=?').bind(u.id).all()).results})}
+ if(path==='/api/me'&&method==='GET'){const u=await user(r,e);if(!u)return json({user:null});return json({user:u,trial:trialPeriod(u.created_at),promotions:await ownPromotions(e,u.id),profile:await e.DB.prepare('SELECT * FROM profiles WHERE id=?').bind(u.id).first(),draft:await e.DB.prepare('SELECT data FROM profile_drafts WHERE account_id=?').bind(u.id).first(),files:(await e.DB.prepare('SELECT id,kind,mime,name FROM files WHERE account_id=?').bind(u.id).all()).results})}
  if(path==='/api/profile/draft'&&method==='PUT'){
   const u=await required(r,e),b=await body(r),draft={};
   for(const [key,max] of Object.entries({name:100,city_id:50,city_text:120,phone:30,bio:4000,credentials:1000}))if(typeof b[key]==='string')draft[key]=b[key].slice(0,max);
@@ -99,5 +107,5 @@ async function api(r,e){
  fail('Не найдено',404);
 }
 function cookie(r,token,age=604800){return `session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${new URL(r.url).protocol==='https:'?'; Secure':''}`}
-async function loginSession(r,e,a){const token=hex(crypto.getRandomValues(new Uint8Array(32)));await e.DB.prepare('DELETE FROM sessions WHERE expires<?').bind(Date.now()).run();await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(token),a.id,Date.now()+604800000).run();return json({user:{id:a.id,email:a.email}},200,{'Set-Cookie':cookie(r,token)})}
-export default {async scheduled(_event,e,ctx){ctx.waitUntil((async()=>{await e.DB.prepare("DELETE FROM analytics_events WHERE created_at<datetime('now','-90 days')").run();if(!await e.DB.prepare("SELECT key FROM site_settings WHERE key='google_tokens'").first())return;await e.DB.prepare("UPDATE sync_jobs SET status='error',last_error='Повтор после прерывания' WHERE status='running' AND updated_at<datetime('now','-10 minutes')").run();await processSync(e,1)})())},async fetch(r,e){let response;try{response=new URL(r.url).pathname.startsWith('/api/')?await api(r,e):await e.ASSETS.fetch(r)}catch(err){if(!err.status)console.error('Request failed:',err.message);response=json({error:err.status?err.message:'Сервис временно недоступен. Попробуйте ещё раз.'},err.status||500)}const headers=new Headers(response.headers);headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','strict-origin-when-cross-origin');headers.set('X-Frame-Options','DENY');headers.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");return new Response(response.body,{status:response.status,headers})}};
+async function loginSession(r,e,a,extra={}){const token=hex(crypto.getRandomValues(new Uint8Array(32)));await e.DB.prepare('DELETE FROM sessions WHERE expires<?').bind(Date.now()).run();await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(token),a.id,Date.now()+604800000).run();return json({user:{id:a.id,email:a.email},...extra},200,{'Set-Cookie':cookie(r,token)})}
+export default {async scheduled(_event,e,ctx){ctx.waitUntil((async()=>{await e.DB.prepare("DELETE FROM email_verification_tokens WHERE expires<=?").bind(Date.now()).run();await e.DB.prepare("DELETE FROM analytics_events WHERE created_at<datetime('now','-90 days')").run();if(!await e.DB.prepare("SELECT key FROM site_settings WHERE key='google_tokens'").first())return;await e.DB.prepare("UPDATE sync_jobs SET status='error',last_error='Повтор после прерывания' WHERE status='running' AND updated_at<datetime('now','-10 minutes')").run();await processSync(e,1)})())},async fetch(r,e){let response;try{response=new URL(r.url).pathname.startsWith('/api/')?await api(r,e):await e.ASSETS.fetch(r)}catch(err){if(!err.status)console.error('Request failed:',err.message);response=json({error:err.status?err.message:'Сервис временно недоступен. Попробуйте ещё раз.'},err.status||500)}const headers=new Headers(response.headers);headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','strict-origin-when-cross-origin');headers.set('X-Frame-Options','DENY');headers.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");return new Response(response.body,{status:response.status,headers})}};

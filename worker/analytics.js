@@ -1,5 +1,5 @@
 import {json,getSetting} from './admin-auth.js';
-export const events=new Set(['page_view','calculation','calendar_open','calendar_day','master_search','master_view','contact_open','whatsapp_click','registration','profile_submit','review_submit','engagement','error']);
+export const events=new Set(['page_view','calculation','calendar_open','calendar_day','master_search','master_view','contact_open','whatsapp_click','registration','profile_submit','review_submit','promotion_request','engagement','error']);
 export const cleanLabel=value=>String(value||'').replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,60);
 export function safePath(value){const path=String(value||'');if(/^\/masters\/[a-f0-9-]{36}$/.test(path))return '/masters/:id';return ['/','/results','/calendar','/about','/masters','/account','/privacy'].includes(path)?path:null}
 export async function collectEvent(r,e,b){

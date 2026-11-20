@@ -467,3 +467,47 @@ select.control { appearance: auto; }
  .about-institute h2 { font-size: 25px; margin-bottom: 12px; }
  .about-calculator { margin-top: 40px; }
 }
+
+.password-field { position: relative; }
+.password-field .control { padding-inline-end: 52px; }
+.password-toggle { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 42px; height: 42px; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: #74747e; }
+.password-toggle:hover { background: #f1f2f5; color: #242427; }
+.password-toggle svg { width: 21px; height: 21px; }
+.password-eye-slash { display: none; }
+.password-toggle[aria-pressed="true"] .password-eye-slash { display: block; }
+.membership-notice { max-width: 1000px; padding: 24px; margin: 24px 0; background: #fafafa; border: 1px solid var(--line); border-radius: 14px; }
+.membership-notice h2 { font-size: 16px; margin: 0 0 12px; }
+.membership-notice p { font-size: 13px; line-height: 1.85; color: #686873; margin: 0; }
+.membership-notice .membership-period { margin-top: 14px; color: var(--ink); }
+.auth-intro .membership-notice { max-width: 390px; margin-top: 28px; }
+.promotion-management { max-width: 1000px; margin: -12px 0 36px; }
+.promotion-management > .button { white-space: normal; text-align: start; }
+.promotion-panel { padding: 24px; margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; }
+.promotion-panel h2 { font-size: 20px; margin: 0 0 16px; }
+.promotion-panel > p { font-size: 13px; color: #74747e; line-height: 1.8; }
+.promotion-fields { display: grid; grid-template-columns: minmax(120px,180px) minmax(0,1fr); gap: 16px; margin: 24px 0; }
+.promotion-fields .control { margin-top: 8px; }
+.promotion-cost { color: #74747e; min-height: 52px; }
+.promotion-hint { font-size: 13px; color: #74747e; }
+.promotion-history { margin-top: 24px; }
+.promotion-history h3 { font-size: 15px; }
+.promotion-history article { padding: 18px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.promotion-history p { font-size: 12px; color: #74747e; }
+.promotion-badge { display: inline-block; border-radius: 5px; padding: 5px 8px; margin-top: 12px; background: #f6eee9; color: #9c5c33; font-size: 10px; }
+@media(max-width:680px) {
+ .membership-notice,.promotion-panel { padding: 18px; }
+ .auth-intro .membership-notice { max-width: none; }
+ .promotion-fields { grid-template-columns: minmax(0,1fr); }
+ .promotion-management > .button { width: 100%; justify-content: center; }
+}
+
+.email-verification-notice { max-width: 1000px; padding: 22px 24px; margin: 24px 0; border: 1px solid #ead8bb; border-radius: 14px; background: #fffbf5; }
+.email-verification-notice h2 { margin: 0 0 12px; font-size: 17px; }
+.email-verification-notice p { margin: 8px 0; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.email-verification-notice .button { margin-top: 12px; }
+.email-verification-notice.is-verified { background: #f6f9f4; border-color: #dce7d6; }
+.email-status-label { font-size: 12px; color: var(--muted); }
+.verification-page { max-width: 620px; margin: 20px auto; }
+.verification-page h1 { font-size: 32px; }
+.verification-page > p { font-size: 14px; line-height: 1.8; }
+@media(max-width:680px) { .email-verification-notice { padding: 18px; }.verification-page h1 { font-size: 28px; } }
