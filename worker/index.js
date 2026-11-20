@@ -1,3 +1,4 @@
+import {handleCommunity} from './community.js';
 import {resolveLocation} from '../shared/locations.js';
 import {sendVerification,handleEmailVerification} from './email-verification.js';
 import {trialPeriod} from '../shared/membership.js';
@@ -16,16 +17,17 @@ async function password(value,salt){const key=await crypto.subtle.importKey('raw
 function equal(a,b){if(a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
 function text(v,min,max,label){if(typeof v!=='string'||v.trim().length<min||v.trim().length>max)fail(`Проверьте поле «${label}»`);return v.trim()}
 async function body(r){if(+(r.headers.get('content-length')||0)>20000)fail('Слишком большой запрос',413);try{return await r.json()}catch{fail('Некорректный запрос')}}
-async function user(r,e){const token=r.headers.get('cookie')?.match(/(?:^|;\s*)session=([a-f0-9]+)/)?.[1];if(!token)return null;return e.DB.prepare('SELECT a.id,a.email,a.created_at,a.email_verified_at,a.email_verification_sent_at FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE s.token=? AND s.expires>?').bind(await hash(token),Date.now()).first()}
+async function user(r,e){const token=r.headers.get('cookie')?.match(/(?:^|;\s*)session=([a-f0-9]+)/)?.[1];if(!token)return null;return e.DB.prepare('SELECT a.id,a.email,a.display_name,a.registration_type,a.role,a.newsletter_opt_in,a.newsletter_consent_at,a.created_at,a.email_verified_at,a.email_verification_sent_at FROM sessions s JOIN accounts a ON a.id=s.account_id WHERE s.token=? AND s.expires>?').bind(await hash(token),Date.now()).first()}
 async function required(r,e){const u=await user(r,e);if(!u)fail('Войдите в аккаунт',401);return u}
 async function limit(r,e,type,max=15){const ip=r.headers.get('CF-Connecting-IP')||'local',key=await hash(`${type}:${ip}:${Math.floor(Date.now()/3600000)}`);await e.DB.prepare('DELETE FROM rate_limits WHERE expires<?').bind(Date.now()).run();const result=await e.DB.prepare('INSERT INTO rate_limits(key,hits,expires) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET hits=hits+1 RETURNING hits').bind(key,Date.now()+3600000).first();if(result.hits>max)fail('Слишком много попыток. Попробуйте через час.',429)}
-const select='SELECT p.id,p.name,p.city_id,p.city_name,p.country,p.country_code,p.coordinates_known,CASE WHEN p.coordinates_known=1 THEN p.lat ELSE NULL END lat,CASE WHEN p.coordinates_known=1 THEN p.lon ELSE NULL END lon,p.bio,p.credentials,p.photo,COALESCE(AVG(r.rating),0) rating,COUNT(r.id) review_count,EXISTS(SELECT 1 FROM promotions b WHERE b.master_id=p.id AND b.status=\'active\' AND b.ends_at>CURRENT_TIMESTAMP) promoted,(SELECT SUBSTR(text,1,180) FROM reviews latest WHERE latest.master_id=p.id AND latest.status=\'approved\' ORDER BY latest.created_at DESC LIMIT 1) review_preview FROM profiles p LEFT JOIN reviews r ON r.master_id=p.id AND r.status=\'approved\'';
+const select='SELECT p.id,p.name,p.city_id,p.city_name,p.country,p.country_code,p.coordinates_known,CASE WHEN p.coordinates_known=1 THEN p.lat ELSE NULL END lat,CASE WHEN p.coordinates_known=1 THEN p.lon ELSE NULL END lon,p.bio,p.credentials,p.photo,COALESCE(AVG(r.rating),0) rating,COUNT(r.id) review_count,EXISTS(SELECT 1 FROM promotions b WHERE b.master_id=p.id AND b.status=\'active\' AND b.ends_at>CURRENT_TIMESTAMP) promoted,(SELECT SUBSTR(text,1,180) FROM reviews latest WHERE latest.master_id=p.id AND latest.status=\'approved\' AND latest.evidence_status=\'verified\' ORDER BY latest.created_at DESC LIMIT 1) review_preview FROM profiles p LEFT JOIN reviews r ON r.master_id=p.id AND r.status=\'approved\' AND r.evidence_status=\'verified\'';
 async function api(r,e){
  const url=new URL(r.url),path=url.pathname,method=r.method;
  if(!['GET','HEAD'].includes(method)){
   const origin=r.headers.get('origin');if(!origin||origin!==url.origin)fail('Запрос с другого сайта запрещён',403);
  }
  const admin=await handleAdmin(r,e,{body,limit});if(admin)return admin;
+ const community=await handleCommunity(r,e,{required,body,limit});if(community)return community;
  const emailVerification=await handleEmailVerification(r,e,{required,body,limit});if(emailVerification)return emailVerification;
  const promotion=await handlePromotions(r,e,{required,body,limit});if(promotion)return promotion;
  if(path==='/api/public-config'&&method==='GET')return json(await publicConfig(e));
@@ -35,8 +37,9 @@ async function api(r,e){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Введите корректный email');
   if(typeof b.passwordConfirm!=='string'||!b.passwordConfirm)fail('Повторите пароль');
   if(b.passwordConfirm!==b.password)fail('Пароли не совпадают');
+  const displayName=b.registrationType==='user'?text(b.name,2,100,'Имя'):'';if(b.newsletter!==undefined&&typeof b.newsletter!=='boolean')fail('Проверьте выбор подписки');const subscribed=b.newsletter===true?1:0;
   const salt=crypto.randomUUID(),id=crypto.randomUUID();
-  try{await e.DB.prepare('INSERT INTO accounts(id,email,password,salt) VALUES(?,?,?,?)').bind(id,email,await password(pass,salt),salt).run()}catch(err){if(String(err).includes('UNIQUE'))fail('Этот email уже зарегистрирован',409);throw err}
+  try{await e.DB.prepare('INSERT INTO accounts(id,email,password,salt,display_name,registration_type,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END)').bind(id,email,await password(pass,salt),salt,displayName,b.registrationType==='user'?'user':'master',subscribed,subscribed).run()}catch(err){if(String(err).includes('UNIQUE'))fail('Этот email уже зарегистрирован',409);throw err}
   let verification;try{verification=await sendVerification(e,{id,email})}catch{verification={sent:false,configured:!!e.RESEND_API_KEY}}
   return loginSession(r,e,{id,email},{verification});
  }
@@ -88,8 +91,8 @@ async function api(r,e){
  }
  const match=path.match(/^\/api\/masters\/([a-f0-9-]+)(\/reviews)?$/);
  if(match){const id=match[1],p=await e.DB.prepare(select+" WHERE p.status='approved' AND p.id=? GROUP BY p.id").bind(id).first();if(!p)fail('Мастер не найден',404);
-  if(method==='GET'&&!match[2]){const contact=await e.DB.prepare('SELECT phone FROM profiles WHERE id=?').bind(id).first();const reviews=(await e.DB.prepare("SELECT id,author,rating,text,created_at FROM reviews WHERE master_id=? AND status='approved' ORDER BY created_at DESC LIMIT 100").bind(id).all()).results;return json({...p,phone:contact.phone,reviews})}
-  if(method==='POST'&&match[2]){const u=await required(r,e);if(u.id===id)fail('Нельзя оставить отзыв о себе');await limit(r,e,'review',10);const b=await body(r),rating=Number(b.rating),author=text(b.author,2,70,'Ваше имя'),review=text(b.text,20,1500,'Отзыв');if(!Number.isInteger(rating)||rating<1||rating>5)fail('Оценка от 1 до 5');try{await e.DB.prepare('INSERT INTO reviews(id,master_id,author_id,author,rating,text,status) VALUES(?,?,?,?,?,?,\'pending\')').bind(crypto.randomUUID(),id,u.id,author,rating,review).run()}catch(err){if(String(err).includes('UNIQUE'))fail('Вы уже оставили отзыв',409);throw err}return json({ok:true},201)}
+  if(method==='GET'&&!match[2]){const contact=await e.DB.prepare('SELECT phone FROM profiles WHERE id=?').bind(id).first();const reviews=(await e.DB.prepare("SELECT id,author,rating,text,created_at FROM reviews WHERE master_id=? AND status='approved' AND evidence_status='verified' ORDER BY created_at DESC LIMIT 100").bind(id).all()).results;return json({...p,phone:contact.phone,reviews})}
+
  }
  if(path==='/api/admin/profiles'&&method==='GET'){
   if(!await isAdmin(r,e))fail('Нет доступа',403);

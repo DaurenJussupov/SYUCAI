@@ -517,4 +517,14 @@ select.control { appearance: auto; }
 .verification-page { max-width: 620px; margin: 20px auto; }
 .verification-page h1 { font-size: 32px; }
 .verification-page > p { font-size: 14px; line-height: 1.8; }
+.member-preferences { max-width: 620px; margin: 28px 0; }
+.member-review-history { max-width: 900px; margin: 36px 0; }
+.member-review,.blog-list article,.blog-admin-list article { border: 1px solid var(--line); border-radius: 14px; padding: 24px; margin: 20px 0; }
+.member-review p,.blog-list p { font-size: 14px; line-height: 1.8; }
+.blog-list { max-width: 850px; }
+.blog-content { font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; }
+#review-composer .button { margin: 12px 12px 0 0; }
+#review-composer .membership-notice { padding: 18px; }
+#review-composer input[type="file"] { max-width: 100%; }
+#blog-editor { max-width: 850px; margin: 24px 0; }
 @media(max-width:680px) { .email-verification-notice { padding: 18px; }.verification-page h1 { font-size: 28px; } }

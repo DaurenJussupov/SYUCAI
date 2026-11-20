@@ -17,7 +17,7 @@ const response=(value,status=200)=>new Response(JSON.stringify(value),{status,he
 
 test('additive migration preserves previous profiles, files and published reviews',()=>{
  const e=database({migrate:false});profile(e);account(e,reviewer);e.sqlite.prepare('INSERT INTO reviews(id,master_id,author_id,author,rating,text) VALUES(?,?,?,?,?,?)').run('review',userId,reviewer,'Reviewer',5,'Original review');
- e.sqlite.exec(readFileSync('migrations/0002_admin_integrations.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0003_promotions.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0004_email_verification.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0005_world_locations.sql','utf8'));assert.equal(e.sqlite.prepare('SELECT country_code,city_name FROM profiles').get().country_code,'KZ');assert.equal(e.sqlite.prepare('SELECT status FROM profiles').get().status,'approved');assert.equal(e.sqlite.prepare('SELECT count(*) n FROM files').get().n,2);assert.equal(e.sqlite.prepare('SELECT status FROM reviews').get().status,'approved');e.close();
+ e.sqlite.exec(readFileSync('migrations/0002_admin_integrations.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0003_promotions.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0004_email_verification.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0005_world_locations.sql','utf8'));e.sqlite.exec(readFileSync('migrations/0006_members_moderation_blog.sql','utf8'));assert.equal(e.sqlite.prepare('SELECT country_code,city_name FROM profiles').get().country_code,'KZ');assert.equal(e.sqlite.prepare('SELECT status FROM profiles').get().status,'approved');assert.equal(e.sqlite.prepare('SELECT count(*) n FROM files').get().n,2);assert.equal(e.sqlite.prepare('SELECT status FROM reviews').get().status,'approved');e.close();
 });
 test('admin sessions use HttpOnly cookies, reject CSRF and are revoked by secret rotation',async()=>{
  const e=fixture();try{
@@ -42,10 +42,9 @@ test('unfinished drafts and files are visible to admin but private to visitors',
 });
 test('pending reviews cannot affect public ratings; moderation changes the average',async()=>{
  const e=fixture();try{profile(e);account(e,reviewer);const token='e'.repeat(64);await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(token),reviewer,Date.now()+60000).run();
- const result=await request(e,`/masters/${userId}/reviews`,{method:'POST',headers:{Cookie:'session='+token},body:{author:'Reviewer',rating:4,text:'This is a complete review about a consultation.'}});assert.equal(result.status,201);
+ e.sqlite.prepare("UPDATE accounts SET email_verified_at=CURRENT_TIMESTAMP WHERE id=?").run(reviewer);const id='00000000-0000-4000-8000-000000000099';e.sqlite.prepare("INSERT INTO reviews(id,master_id,author_id,author,rating,text,status,evidence_status) VALUES(?,?,?,?,?,?,'pending','pending')").run(id,userId,reviewer,'Reviewer',4,'This is a complete review about a consultation.');e.sqlite.prepare('INSERT INTO review_evidence(id,review_id,account_id,object_key,mime,name) VALUES(?,?,?,?,?,?)').run('proof',id,reviewer,'proof-key','application/pdf','receipt.pdf');
  let publicData=await(await request(e,'/masters/'+userId)).json();assert.equal(publicData.review_count,0);assert.equal(publicData.reviews.length,0);
- const id=e.sqlite.prepare('SELECT id FROM reviews').get().id;
- await request(e,'/admin/reviews',{method:'POST',headers:admin,body:{id,status:'approved'}});publicData=await(await request(e,'/masters/'+userId)).json();assert.equal(publicData.rating,4);assert.equal(publicData.review_count,1);
+ await request(e,'/admin/reviews',{method:'POST',headers:admin,body:{id,status:'approved',consultation_confirmed:true,evidence_id:'proof'}});publicData=await(await request(e,'/masters/'+userId)).json();assert.equal(publicData.rating,4);assert.equal(publicData.review_count,1);
  await request(e,'/admin/reviews',{method:'POST',headers:admin,body:{id,status:'rejected'}});publicData=await(await request(e,'/masters/'+userId)).json();assert.equal(publicData.review_count,0);
  }finally{e.close()}
 });
