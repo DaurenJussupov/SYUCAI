@@ -16,18 +16,18 @@ test('verification email uses the canonical HTTPS site, expires, stores only has
  assert.equal((await sendVerification(e,user,{request:send})).sent,true);
  const token=tokenFrom(messages[0]),row=e.sqlite.prepare('SELECT * FROM email_verification_tokens').get();assert.notEqual(row.token,token);assert.equal(row.token,await hash(token));assert.ok(row.expires>Date.now()+86300000);assert.ok(messages[0].text.includes(origin+'/verify-email#token='));assert.equal(new URL(messages[0].text.match(/https:\/\/[^\s]+/)[0]).search,'');
  await assert.rejects(sendVerification(e,user,{request:send}),e=>e.status===429);
- e.sqlite.prepare('UPDATE accounts SET email_verification_requested_at=0 WHERE id=?').run(id);await sendVerification(e,user,{request:send});assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,2);
- assert.deepEqual(await verifyEmail(e,token),{ok:true});assert.ok(e.sqlite.prepare('SELECT email_verified_at FROM accounts').get().email_verified_at);assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,0);
+ e.sqlite.prepare('UPDATE account_registrations SET email_verification_requested_at=0 WHERE account_id=?').run(id);await sendVerification(e,user,{request:send});assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,2);
+ assert.deepEqual(await verifyEmail(e,token),{ok:true,registration_type:'master'});assert.ok(e.sqlite.prepare('SELECT email_verified_at FROM account_registrations').get().email_verified_at);assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,0);
  await assert.rejects(verifyEmail(e,token),/истекла или уже использована/);await assert.rejects(verifyEmail(e,tokenFrom(messages[1])),/истекла или уже использована/);
  }finally{e.close()}
 });
 test('expired or malformed links cannot verify an account',async()=>{
- const e=fixture();try{let token;await sendVerification(e,user,{request:async(url,options)=>{token=tokenFrom(JSON.parse(options.body));return response({id:'accepted'})}});e.sqlite.prepare('UPDATE email_verification_tokens SET expires=0').run();await assert.rejects(verifyEmail(e,token),e=>e.status===400);await assert.rejects(verifyEmail(e,'not-a-token'),e=>e.status===400);assert.equal(e.sqlite.prepare('SELECT email_verified_at FROM accounts').get().email_verified_at,null)}finally{e.close()}
+ const e=fixture();try{let token;await sendVerification(e,user,{request:async(url,options)=>{token=tokenFrom(JSON.parse(options.body));return response({id:'accepted'})}});e.sqlite.prepare('UPDATE email_verification_tokens SET expires=0').run();await assert.rejects(verifyEmail(e,token),e=>e.status===400);await assert.rejects(verifyEmail(e,'not-a-token'),e=>e.status===400);assert.equal(e.sqlite.prepare('SELECT email_verified_at FROM account_registrations').get().email_verified_at,null)}finally{e.close()}
 });
 test('a missing or failing provider never claims a message was sent and never prevents account creation',async()=>{
  const e=fixture();try{
  const missing={...e,RESEND_API_KEY:undefined};assert.deepEqual(await sendVerification(missing,user),{sent:false,configured:false});assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,0);
- const original=console.error;console.error=()=>{};try{const failed=await sendVerification(e,user,{request:async()=>response({error:'failed'},403)});assert.equal(failed.sent,false);assert.equal(e.sqlite.prepare('SELECT email_verification_sent_at FROM accounts').get().email_verification_sent_at,null)}finally{console.error=original}
+ const original=console.error;console.error=()=>{};try{const failed=await sendVerification(e,user,{request:async()=>response({error:'failed'},403)});assert.equal(failed.sent,false);assert.equal(e.sqlite.prepare('SELECT email_verification_sent_at FROM account_registrations').get().email_verification_sent_at,null)}finally{console.error=original}
  const registered=await request(missing,'/auth/register',{method:'POST',body:{email:'another@example.test',password:'TestPassword123!',passwordConfirm:'TestPassword123!'}});assert.equal(registered.status,200);assert.equal((await registered.json()).verification.sent,false);
  }finally{e.close()}
 });

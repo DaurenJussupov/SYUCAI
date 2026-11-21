@@ -527,4 +527,18 @@ select.control { appearance: auto; }
 #review-composer .membership-notice { padding: 18px; }
 #review-composer input[type="file"] { max-width: 100%; }
 #blog-editor { max-width: 850px; margin: 24px 0; }
+.blog-cover { display: block; width: 100%; max-height: 520px; object-fit: contain; border-radius: 14px; margin: 20px 0; }
+.blog-list .blog-cover { max-height: 280px; object-fit: cover; }
+.blog-stats,.blog-reactions,.comment-pagination { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin: 18px 0; font-size: 13px; }
+.blog-reactions button[aria-pressed="true"] { color: var(--orange); border-color: var(--orange); }
+.blog-comments { margin-top: 35px; }
+.blog-comment { padding: 22px 0; border-top: 1px solid var(--line); }
+.blog-comment p { overflow-wrap: anywhere; }
+.blog-comment time { font-size: 11px; color: var(--muted); }
+.block-duration { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px; }
+.comment-block-notice { padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
 @media(max-width:680px) { .email-verification-notice { padding: 18px; }.verification-page h1 { font-size: 28px; } }
+
+.blog-list h2,.blog-article h1 { overflow-wrap: anywhere; }
+
+.admin-comment p { overflow-wrap: anywhere; }

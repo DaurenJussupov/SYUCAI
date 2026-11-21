@@ -19,16 +19,16 @@ export function mountEmailStatus({api,user,esc}){
  }
  async function check(){
   if(!root.isConnected){stop();return}if(checking||document.visibilityState!=='visible'||user.email_verified_at)return;
-  checking=true;try{const data=await api('/me');if(root.isConnected&&data.user?.id===user.id){user=data.user;render()}}catch{}finally{checking=false}
+  checking=true;try{const data=await api('/me');if(root.isConnected&&data.user?.id===user.id&&data.user?.registration_type===user.registration_type){user=data.user;render()}}catch{}finally{checking=false}
  }
  function onVisibility(){if(document.visibilityState==='visible')check()}
  if(!user.email_verified_at){interval=setInterval(check,30000);window.addEventListener('focus',check);document.addEventListener('visibilitychange',onVisibility)}render();return stop;
 }
 export function renderEmailVerification({shell,api,link}){
- const token=new URLSearchParams(location.hash.slice(1)).get('token');
+ const fragment=new URLSearchParams(location.hash.slice(1)),token=fragment.get('token'),type=fragment.get('type')==='master'?'master':'user';
  // Confirmation secrets stay out of query strings, page analytics and browser history.
  history.replaceState({},'','/verify-email');
  const valid=/^[a-f0-9]{64}$/.test(token||'');
- shell(`<article class="verification-page"><h1>Подтверждение email</h1><p id="verification-message" role="status">${valid?'Нажмите кнопку, чтобы подтвердить адрес электронной почты.':'Ссылка подтверждения недействительна. Запросите новое письмо в кабинете.'}</p>${valid?'<button class="button" type="button" id="verify-email-button">Подтвердить email</button>':''}<p class="error" id="verification-error" role="alert"></p><p>${link('/cabinet?mode=login','Перейти в кабинет','text-link')}</p></article>`,'page');
- const button=document.querySelector('#verify-email-button');if(button)button.onclick=async()=>{button.disabled=true;const error=document.querySelector('#verification-error');error.textContent='';try{await api('/auth/verify-email',{method:'POST',body:{token}});if(!button.isConnected)return;document.querySelector('#verification-message').textContent='Email успешно подтверждён. Вы можете вернуться в кабинет.';button.remove();translateDocument()}catch(err){if(button.isConnected){error.textContent=err.message;button.disabled=false;translateDocument()}}};
+ shell(`<article class="verification-page"><h1>Подтверждение email</h1><p id="verification-message" role="status">${valid?'Нажмите кнопку, чтобы подтвердить адрес электронной почты.':'Ссылка подтверждения недействительна. Запросите новое письмо в кабинете.'}</p>${valid?'<button class="button" type="button" id="verify-email-button">Подтвердить email</button>':''}<p class="error" id="verification-error" role="alert"></p><p>${link(type==='master'?'/account?mode=login':'/cabinet?mode=login','Перейти в кабинет','text-link')}</p></article>`,'page');
+ const button=document.querySelector('#verify-email-button');if(button)button.onclick=async()=>{button.disabled=true;const error=document.querySelector('#verification-error');error.textContent='';try{const result=await api('/auth/verify-email',{method:'POST',body:{token}});if(!button.isConnected)return;document.querySelector('#verification-message').textContent=result.registration_type==='master'?'Email профиля мастера подтверждён. Вы можете вернуться в кабинет.':'Email профиля пользователя подтверждён. Вы можете вернуться в кабинет.';document.querySelector('.verification-page a[data-link]').setAttribute('href',result.registration_type==='master'?'/account?mode=login':'/cabinet?mode=login');button.remove();translateDocument()}catch(err){if(button.isConnected){error.textContent=err.message;button.disabled=false;translateDocument()}}};
 }

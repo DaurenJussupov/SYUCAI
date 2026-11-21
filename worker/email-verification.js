@@ -10,18 +10,20 @@ export function emailSite(e){
 export async function sendVerification(e,user,{request=fetch,now=Date.now()}={}){
  if(user.email_verified_at)return {sent:false,verified:true};
  if(!emailConfigured(e))return {sent:false,configured:false};
- const claimed=await e.DB.prepare('UPDATE accounts SET email_verification_requested_at=? WHERE id=? AND email_verified_at IS NULL AND email_verification_requested_at<=? RETURNING id').bind(now,user.id,now-60000).first();
+ const type=user.registration_type||'master';
+ const claimed=await e.DB.prepare('UPDATE account_registrations SET email_verification_requested_at=? WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND email_verification_requested_at<=? RETURNING account_id').bind(now,user.id,type,now-60000).first();
  if(!claimed)fail('Повторное письмо можно запросить через минуту',429);
  await e.DB.prepare('DELETE FROM email_verification_tokens WHERE expires<=?').bind(now).run();
- const token=hex(crypto.getRandomValues(new Uint8Array(32))),digest=await hash(token),link=emailSite(e)+'/verify-email#token='+token;
- await e.DB.prepare('INSERT INTO email_verification_tokens(token,account_id,expires) VALUES(?,?,?)').bind(digest,user.id,now+86400000).run();
- const text=`Здравствуйте!\n\nПодтвердите email для аккаунта на сайте SYUCAI:\n${link}\n\nСсылка действует 24 часа. Если Вы не регистрировались на сайте, просто проигнорируйте это письмо.`;
- const html=`<!doctype html><html lang="ru"><body style="font-family:Arial,sans-serif;background:#fff;color:#242427;padding:32px;line-height:1.7"><h1 style="font-size:24px">Подтвердите email</h1><p>Здравствуйте!</p><p>Вы зарегистрировались на сайте SYUCAI. Нажмите кнопку, чтобы подтвердить адрес электронной почты.</p><p><a href="${escape(link)}" style="display:inline-block;padding:12px 22px;background:#242427;color:white;text-decoration:none;border-radius:8px">Подтвердить email</a></p><p>Ссылка действует 24 часа. Если кнопка не открывается, скопируйте адрес в браузер:</p><p style="word-break:break-all">${escape(link)}</p><p style="font-size:12px;color:#73737c">Если Вы не регистрировались на сайте, просто проигнорируйте это письмо.</p></body></html>`;
+ const token=hex(crypto.getRandomValues(new Uint8Array(32))),digest=await hash(token),link=emailSite(e)+'/verify-email#token='+token+'&type='+type;
+ await e.DB.prepare('INSERT INTO email_verification_tokens(token,account_id,expires,registration_type) VALUES(?,?,?,?)').bind(digest,user.id,now+86400000,type).run();
+ const section=type==='master'?'профиля мастера':'профиля пользователя';
+ const text=`Здравствуйте!\n\nПодтвердите email для ${section} на сайте SYUCAI:\n${link}\n\nСсылка действует 24 часа. Если Вы не регистрировались на сайте, просто проигнорируйте это письмо.`;
+ const html=`<!doctype html><html lang="ru"><body style="font-family:Arial,sans-serif;background:#fff;color:#242427;padding:32px;line-height:1.7"><h1 style="font-size:24px">Подтвердите email</h1><p>Здравствуйте!</p><p>Вы зарегистрировались на сайте SYUCAI (${section}). Нажмите кнопку, чтобы подтвердить адрес электронной почты.</p><p><a href="${escape(link)}" style="display:inline-block;padding:12px 22px;background:#242427;color:white;text-decoration:none;border-radius:8px">Подтвердить email</a></p><p>Ссылка действует 24 часа. Если кнопка не открывается, скопируйте адрес в браузер:</p><p style="word-break:break-all">${escape(link)}</p><p style="font-size:12px;color:#73737c">Если Вы не регистрировались на сайте, просто проигнорируйте это письмо.</p></body></html>`;
  try{
-  const response=await request('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${e.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':'verify-'+digest},body:JSON.stringify({from:emailSender(e),to:[user.email],subject:'Подтвердите email — SYUCAI',text,html}),signal:AbortSignal.timeout(10000)});
+  const response=await request('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${e.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':'verify-'+digest},body:JSON.stringify({from:emailSender(e),to:[user.email],subject:'Подтвердите email '+section+' — SYUCAI',text,html}),signal:AbortSignal.timeout(10000)});
   if(!response.ok)throw Error('Email provider returned HTTP '+response.status);
   const accepted=await response.json();if(typeof accepted.id!=='string'||!accepted.id)throw Error('Email provider did not acknowledge the message');
-  await e.DB.prepare('UPDATE accounts SET email_verification_sent_at=CURRENT_TIMESTAMP WHERE id=?').bind(user.id).run();return {sent:true,configured:true};
+  await e.DB.prepare('UPDATE account_registrations SET email_verification_sent_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=?').bind(user.id,type).run();return {sent:true,configured:true};
  }catch(error){
   // Do not delete the token: a provider timeout may happen after successful delivery.
   // Never log recipient addresses, message bodies, API keys or confirmation tokens.
@@ -31,9 +33,11 @@ export async function sendVerification(e,user,{request=fetch,now=Date.now()}={})
 export async function verifyEmail(e,token,now=Date.now()){
  if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))fail('Ссылка подтверждения недействительна. Запросите новое письмо в кабинете.');
  const digest=await hash(token);
- const updated=await e.DB.prepare('UPDATE accounts SET email_verified_at=CURRENT_TIMESTAMP WHERE id=(SELECT account_id FROM email_verification_tokens WHERE token=? AND expires>?) AND email_verified_at IS NULL RETURNING id').bind(digest,now).first();
+ const pending=await e.DB.prepare('SELECT account_id,registration_type FROM email_verification_tokens WHERE token=? AND expires>?').bind(digest,now).first();
+ if(!pending)fail('Ссылка истекла или уже использована. Запросите новое письмо в кабинете.');
+ const updated=await e.DB.prepare('UPDATE account_registrations SET email_verified_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND EXISTS(SELECT 1 FROM email_verification_tokens WHERE token=? AND expires>?) RETURNING account_id').bind(pending.account_id,pending.registration_type,digest,now).first();
  if(!updated)fail('Ссылка истекла или уже использована. Запросите новое письмо в кабинете.');
- await e.DB.prepare('DELETE FROM email_verification_tokens WHERE account_id=?').bind(updated.id).run();return {ok:true};
+ await e.DB.prepare('DELETE FROM email_verification_tokens WHERE account_id=? AND registration_type=?').bind(updated.account_id,pending.registration_type).run();return {ok:true,registration_type:pending.registration_type};
 }
 export async function handleEmailVerification(r,e,{required,body,limit}){
  const path=new URL(r.url).pathname;

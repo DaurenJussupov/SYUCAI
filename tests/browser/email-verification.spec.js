@@ -10,10 +10,14 @@ test('email link is confirmed by an explicit POST; token stays out of analytics 
  const token='a'.repeat(64),requests=[];await page.addInitScript(()=>localStorage.setItem('syucai-analytics-consent','yes'));page.on('request',r=>requests.push(r));let confirmations=0;
  await page.route('**/api/auth/verify-email',r=>{confirmations++;expect(r.request().method()).toBe('POST');expect(r.request().postDataJSON()).toEqual({token});return r.fulfill({json:{ok:true}})});
  await page.route('**/api/public-config',r=>r.fulfill({json:{measurementId:'G-TEST123456',analytics:true}}));
- await page.goto('/verify-email#token='+token);await expect(page).toHaveURL(/\/verify-email$/);expect(confirmations).toBe(0);await page.getByRole('button',{name:'Подтвердить email',exact:true}).click();await expect(page.locator('#verification-message')).toContainText('Email успешно подтверждён');expect(confirmations).toBe(1);
+ await page.goto('/verify-email#token='+token);await expect(page).toHaveURL(/\/verify-email$/);expect(confirmations).toBe(0);await page.getByRole('button',{name:'Подтвердить email',exact:true}).click();await expect(page.locator('#verification-message')).toContainText('Email профиля пользователя подтверждён');expect(confirmations).toBe(1);
  expect(requests.some(r=>r.url().includes('googletagmanager.com')||r.url().endsWith('/api/events'))).toBe(false);expect(requests.every(r=>!r.url().includes(token))).toBe(true);
 });
 test('expired links and email service failures show actionable errors instead of a false success',async({page})=>{
  await page.route('**/api/auth/verify-email',r=>r.fulfill({status:400,json:{error:'Ссылка истекла или уже использована. Запросите новое письмо в кабинете.'}}));await page.goto('/verify-email#token='+'b'.repeat(64));await page.getByRole('button',{name:'Подтвердить email',exact:true}).click();await expect(page.locator('#verification-error')).toContainText('Запросите новое письмо');
  await page.route('**/api/me',r=>r.fulfill({json:{user:unverified,files:[],profile:null,promotions:[]}}));await page.route('**/api/auth/resend-verification',r=>r.fulfill({status:503,json:{error:'Сервис отправки писем временно недоступен. Повторите позже.'}}));await page.goto('/account');await page.locator('#resend-verification').click();await expect(page.locator('#email-verification-error')).toContainText('временно недоступен');await expect(page.locator('#email-verification-notice')).toBeEmpty();
+});
+
+test('verification returns to the confirmed section even when the fragment type hint is wrong',async({page})=>{
+ await page.route('**/api/auth/verify-email',r=>r.fulfill({json:{ok:true,registration_type:'master'}}));await page.goto('/verify-email#token='+'c'.repeat(64)+'&type=user');await page.getByRole('button',{name:'Подтвердить email',exact:true}).click();await expect(page.locator('#verification-message')).toContainText('Email профиля мастера подтверждён');await expect(page.locator('.verification-page a[data-link]')).toHaveAttribute('href','/account?mode=login');
 });

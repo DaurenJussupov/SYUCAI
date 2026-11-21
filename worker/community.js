@@ -1,17 +1,16 @@
+import {publicBlog,editorBlog} from './blog-community.js';
+import {moderatorActor} from './accounts.js';
 import {json,isAdmin,audit} from './admin-auth.js';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status})};
 const text=(value,min,max,label)=>{if(typeof value!=='string'||value.trim().length<min||value.trim().length>max)fail(`Проверьте поле «${label}»`);return value.trim()};
-export async function communityActor(r,e,required){
- if(await isAdmin(r,e))return {id:'admin',admin:true};
- const user=await required(r,e);if(user.role!=='moderator'||!user.email_verified_at)fail('Нет доступа к панели модератора',403);return {...user,admin:false};
-}
+export const communityActor=(r,e)=>moderatorActor(r,e);
 export async function listReviewQueue(e){return (await e.DB.prepare("SELECT r.*,p.name master_name,f.id evidence_id,f.name evidence_name FROM reviews r JOIN profiles p ON p.id=r.master_id LEFT JOIN review_evidence f ON f.review_id=r.id ORDER BY CASE WHEN r.status='pending' OR r.evidence_status='unverified' THEN 0 ELSE 1 END,r.created_at DESC LIMIT 200").all()).results}
 export async function moderateReview(e,data,actor){
  const {id,status}=data||{};if(typeof id!=='string'||!['approved','rejected'].includes(status))fail('Проверьте статус отзыва');
- const review=await e.DB.prepare('SELECT r.*,a.email_verified_at,f.id evidence_id FROM reviews r JOIN accounts a ON a.id=r.author_id LEFT JOIN review_evidence f ON f.review_id=r.id WHERE r.id=?').bind(id).first();if(!review)fail('Отзыв не найден',404);
+ const review=await e.DB.prepare('SELECT r.*,a.email_verified_at,f.id evidence_id FROM reviews r JOIN account_registrations a ON a.account_id=r.author_id AND a.registration_type=\'user\' LEFT JOIN review_evidence f ON f.review_id=r.id WHERE r.id=?').bind(id).first();if(!review)fail('Отзыв не найден',404);
  if(status==='approved'&&(!review.evidence_id||!review.email_verified_at||data.consultation_confirmed!==true||data.evidence_id!==review.evidence_id))fail('Для публикации проверьте документ, подтверждение email и подтвердите факт консультации');
  const note=typeof data.note==='string'?data.note.trim().slice(0,1000):'';
- await e.DB.prepare("UPDATE reviews SET status=?,evidence_status=?,moderation_note=?,evidence_verified_at=CASE WHEN ?='approved' THEN CURRENT_TIMESTAMP ELSE NULL END,moderated_by=? WHERE id=? AND (?='rejected' OR (EXISTS(SELECT 1 FROM review_evidence f WHERE f.review_id=reviews.id AND f.id=?) AND EXISTS(SELECT 1 FROM accounts a WHERE a.id=reviews.author_id AND a.email_verified_at IS NOT NULL))) RETURNING id").bind(status,status==='approved'?'verified':'rejected',note,status,actor.id,id,status,review.evidence_id||'').first().then(row=>{if(!row)fail('Отзыв изменился. Обновите список.',409)});
+ await e.DB.prepare("UPDATE reviews SET status=?,evidence_status=?,moderation_note=?,evidence_verified_at=CASE WHEN ?='approved' THEN CURRENT_TIMESTAMP ELSE NULL END,moderated_by=? WHERE id=? AND (?='rejected' OR (EXISTS(SELECT 1 FROM review_evidence f WHERE f.review_id=reviews.id AND f.id=?) AND EXISTS(SELECT 1 FROM account_registrations a WHERE a.account_id=reviews.author_id AND a.registration_type='user' AND a.email_verified_at IS NOT NULL))) RETURNING id").bind(status,status==='approved'?'verified':'rejected',note,status,actor.id,id,status,review.evidence_id||'').first().then(row=>{if(!row)fail('Отзыв изменился. Обновите список.',409)});
  await audit(e,'review_'+status,id);return {ok:true};
 }
 async function saveReview(r,e,owner,masterId,existing,limit){
@@ -38,7 +37,7 @@ export async function handleCommunity(r,e,{required,body,limit}){
  const url=new URL(r.url),path=url.pathname,method=r.method;
  if(path==='/api/member/preferences'&&method==='PUT'){
   const owner=await required(r,e),data=await body(r),name=text(data.name,2,100,'Имя');if(typeof data.newsletter!=='boolean')fail('Проверьте выбор подписки');
-  await e.DB.prepare('UPDATE accounts SET display_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 AND newsletter_opt_in=0 THEN CURRENT_TIMESTAMP WHEN ?=0 THEN NULL ELSE newsletter_consent_at END WHERE id=?').bind(name,data.newsletter?1:0,data.newsletter?1:0,data.newsletter?1:0,owner.id).run();return json({ok:true});
+  await e.DB.prepare('UPDATE account_registrations SET display_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 AND newsletter_opt_in=0 THEN CURRENT_TIMESTAMP WHEN ?=0 THEN NULL ELSE newsletter_consent_at END WHERE account_id=? AND registration_type=\'user\'').bind(name,data.newsletter?1:0,data.newsletter?1:0,data.newsletter?1:0,owner.id).run();return json({ok:true});
  }
  if(path==='/api/member/reviews'&&method==='GET'){
   const owner=await required(r,e);return json({reviews:(await e.DB.prepare('SELECT r.*,p.name master_name,f.id evidence_id,f.name evidence_name FROM reviews r JOIN profiles p ON p.id=r.master_id LEFT JOIN review_evidence f ON f.review_id=r.id WHERE r.author_id=? ORDER BY r.created_at DESC LIMIT 100').bind(owner.id).all()).results});
@@ -60,15 +59,14 @@ export async function handleCommunity(r,e,{required,body,limit}){
   const object=await e.FILES.get(file.object_key);if(!object)fail('Файл не найден',404);
   return new Response(object.body,{headers:{'Content-Type':file.mime,'Cache-Control':'private, no-store','Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(file.name)}});
  }
- if(path==='/api/blog'&&method==='GET')return json({posts:(await e.DB.prepare("SELECT id,slug,title,excerpt,published_at FROM blog_posts WHERE status='published' ORDER BY published_at DESC LIMIT 100").all()).results});
- const postPath=path.match(/^\/api\/blog\/([a-z0-9-]+)$/);
- if(postPath&&method==='GET'){const post=await e.DB.prepare("SELECT slug,title,excerpt,content,published_at FROM blog_posts WHERE slug=? AND status='published'").bind(postPath[1]).first();if(!post)fail('Новость не найдена',404);return json(post)}
+ if(path==='/api/blog'&&method==='GET')return json(await publicBlog(e));
+ const postPath=path.match(/^\/api\/blog\/([a-z0-9-]+)$/);if(postPath&&method==='GET')return json(await publicBlog(e,postPath[1]));
  if(!path.startsWith('/api/moderator/'))return null;
  const actor=await communityActor(r,e,required);
  if(path==='/api/moderator/session'&&method==='GET')return json({ok:true,admin:actor.admin});
  if(path==='/api/moderator/reviews'&&method==='GET')return json({reviews:await listReviewQueue(e)});
  if(path==='/api/moderator/reviews'&&method==='POST')return json(await moderateReview(e,await body(r),actor));
- if(path==='/api/moderator/posts'&&method==='GET')return json({posts:(await e.DB.prepare('SELECT * FROM blog_posts WHERE ?=1 OR author_id=? ORDER BY updated_at DESC LIMIT 100').bind(actor.admin?1:0,actor.id).all()).results});
+ if(path==='/api/moderator/posts'&&method==='GET')return json(await editorBlog(e,actor));
  if(path==='/api/moderator/posts'&&method==='POST'){
   await limit(r,e,'blog-write',60);const data=await body(r),title=text(data.title,3,160,'Заголовок'),content=text(data.content,20,6000,'Текст новости'),excerpt=typeof data.excerpt==='string'?data.excerpt.trim().slice(0,300):'';
   if(!['draft','published'].includes(data.status))fail('Проверьте статус новости');
@@ -83,11 +81,11 @@ export async function handleCommunityAdmin(r,e,{body}){
  const url=new URL(r.url),path=url.pathname;
  if(!['/api/admin/moderators','/api/admin/subscribers'].includes(path))return null;
  if(!await isAdmin(r,e))fail('Войдите в админ-панель',401);
- if(path==='/api/admin/subscribers'&&r.method==='GET')return json({subscribers:(await e.DB.prepare('SELECT id,display_name,email,newsletter_consent_at,email_verified_at FROM accounts WHERE newsletter_opt_in=1 AND email_verified_at IS NOT NULL ORDER BY newsletter_consent_at DESC LIMIT 10000').all()).results});
- if(path==='/api/admin/moderators'&&r.method==='GET')return json({accounts:(await e.DB.prepare("SELECT id,display_name,email,role,email_verified_at FROM accounts WHERE role='moderator' OR lower(email)=? ORDER BY email LIMIT 200").bind((url.searchParams.get('email')||'').trim().toLowerCase()).all()).results});
+ if(path==='/api/admin/subscribers'&&r.method==='GET')return json({subscribers:(await e.DB.prepare('SELECT a.id,g.display_name,a.email,g.newsletter_consent_at,g.email_verified_at FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.registration_type=\'user\' AND g.newsletter_opt_in=1 AND g.email_verified_at IS NOT NULL ORDER BY g.newsletter_consent_at DESC LIMIT 10000').all()).results});
+ if(path==='/api/admin/moderators'&&r.method==='GET')return json({accounts:(await e.DB.prepare("SELECT a.id,g.display_name,a.email,g.role,g.email_verified_at FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.registration_type='user' AND (g.role='moderator' OR lower(a.email)=?) ORDER BY a.email LIMIT 200").bind((url.searchParams.get('email')||'').trim().toLowerCase()).all()).results});
  if(path==='/api/admin/moderators'&&r.method==='POST'){
   const data=await body(r);if(!['user','moderator'].includes(data?.role)||typeof data.id!=='string')fail('Проверьте роль пользователя');
-  const account=await e.DB.prepare('UPDATE accounts SET role=? WHERE id=? RETURNING id').bind(data.role,data.id).first();if(!account)fail('Пользователь не найден',404);await audit(e,'role_'+data.role,data.id);return json({ok:true});
+  const account=await e.DB.prepare('UPDATE account_registrations SET role=? WHERE account_id=? AND registration_type=\'user\' RETURNING account_id AS id').bind(data.role,data.id).first();if(!account)fail('Пользователь не найден',404);await audit(e,'role_'+data.role,data.id);return json({ok:true});
  }
  return json({error:'Метод не поддерживается'},405);
 }
