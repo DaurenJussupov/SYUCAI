@@ -540,5 +540,19 @@ select.control { appearance: auto; }
 @media(max-width:680px) { .email-verification-notice { padding: 18px; }.verification-page h1 { font-size: 28px; } }
 
 .blog-list h2,.blog-article h1 { overflow-wrap: anywhere; }
+.blog-article { max-width: 1120px; margin: auto; }
+.blog-article-layout { max-width: 750px; margin: 28px auto 0; }
+.blog-article-layout.has-image { max-width: none; display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.5fr); gap: 40px; align-items: start; }
+.blog-article-layout .blog-cover { margin: 0; max-height: none; height: auto; }
+.blog-content p,.blog-content li { font-size: 15px; line-height: 1.9; color: #55555f; }
+.blog-content p { margin: 0 0 22px; }
+.blog-content ul { padding-left: 22px; margin: 0 0 22px; }
+.blog-content li + li { margin-top: 12px; }
+.blog-content h2 { margin: 32px 0 20px; }
+.blog-article #blog-interactions { max-width: 750px; margin: 36px auto 0; }
+@media (max-width: 760px) {
+ .blog-article-layout.has-image { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+ .blog-article-layout .blog-cover { max-width: 460px; margin: auto; }
+}
 
 .admin-comment p { overflow-wrap: anywhere; }
