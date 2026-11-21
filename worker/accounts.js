@@ -12,19 +12,19 @@ const cookie=(r,type,token,age=604800)=>`${type?'session_'+type:'session'}=${tok
 export async function getUser(r,e,type=requestAccountType(r)){
  const scoped=tokenFor(r,'session_'+type),token=scoped||tokenFor(r,'session');if(!token)return null;
  const from=scoped?'scoped_sessions s JOIN accounts a ON a.id=s.account_id JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=s.registration_type':'sessions s JOIN accounts a ON a.id=s.account_id JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=a.registration_type';
- return e.DB.prepare('SELECT a.id,a.email,g.display_name,g.registration_type,g.role,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,g.email_verified_at,g.email_verification_sent_at FROM '+from+' WHERE s.token=? AND s.expires>? AND g.registration_type=?').bind(await hash(token),Date.now(),type).first();
+ return e.DB.prepare('SELECT a.id,a.email,g.display_name,g.last_name,g.registration_type,g.role,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,g.email_verified_at,g.email_verification_sent_at FROM '+from+' WHERE s.token=? AND s.expires>? AND g.registration_type=?').bind(await hash(token),Date.now(),type).first();
 }
 export async function findRegistration(e,email,type){return e.DB.prepare('SELECT a.id,a.email,g.* FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE a.email=? AND g.registration_type=?').bind(email,type).first()}
 export async function moderatorActor(r,e){
  if(await isAdmin(r,e))return {id:'admin',admin:true};
  const user=await getUser(r,e,'user');if(!user)fail('Войдите в профиль пользователя',401);if(user.role!=='moderator'||!user.email_verified_at)fail('Нет доступа к панели модератора',403);return {...user,admin:false};
 }
-export async function createRegistration(e,{email,password,salt,type,displayName,subscribed}){
+export async function createRegistration(e,{email,password,salt,type,displayName,subscribed,lastName=''}){
  const id=crypto.randomUUID();
- const created=await e.DB.prepare('INSERT INTO accounts(id,email,password,salt,display_name,registration_type,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END) ON CONFLICT(email) DO NOTHING RETURNING id').bind(id,email,password,salt,displayName,type,type==='user'?subscribed:0,type==='user'?subscribed:0).first();
- if(created)return {id,email,registration_type:type};
+ const created=await e.DB.prepare('INSERT INTO accounts(id,email,password,salt,display_name,registration_type,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END) ON CONFLICT(email) DO NOTHING RETURNING id').bind(id,email,password,salt,displayName,type,subscribed,subscribed).first();
+ if(created){await e.DB.prepare('UPDATE account_registrations SET last_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE account_id=? AND registration_type=?').bind(lastName,subscribed,subscribed,id,type).run();return {id,email,registration_type:type}};
  const identity=await e.DB.prepare('SELECT id FROM accounts WHERE email=?').bind(email).first();if(!identity)fail('Повторите регистрацию',409);
- try{await e.DB.prepare('INSERT INTO account_registrations(account_id,registration_type,password,salt,display_name,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END)').bind(identity.id,type,password,salt,displayName,type==='user'?subscribed:0,type==='user'?subscribed:0).run()}catch(error){if(String(error).includes('UNIQUE'))fail('Этот email уже зарегистрирован в этом разделе',409);throw error}
+ try{await e.DB.prepare('INSERT INTO account_registrations(account_id,registration_type,password,salt,display_name,last_name,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END)').bind(identity.id,type,password,salt,displayName,lastName,subscribed,subscribed).run()}catch(error){if(String(error).includes('UNIQUE'))fail('Этот email уже зарегистрирован в этом разделе',409);throw error}
  return {id:identity.id,email,registration_type:type};
 }
 async function clearLegacySession(r,e,type){

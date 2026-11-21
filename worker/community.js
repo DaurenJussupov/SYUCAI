@@ -1,3 +1,4 @@
+import {queueContact} from './google-contacts.js';
 import {publicBlog,editorBlog} from './blog-community.js';
 import {moderatorActor} from './accounts.js';
 import {json,isAdmin,audit} from './admin-auth.js';
@@ -35,9 +36,9 @@ async function saveReview(r,e,owner,masterId,existing,limit){
 }
 export async function handleCommunity(r,e,{required,body,limit}){
  const url=new URL(r.url),path=url.pathname,method=r.method;
- if(path==='/api/member/preferences'&&method==='PUT'){
-  const owner=await required(r,e),data=await body(r),name=text(data.name,2,100,'Имя');if(typeof data.newsletter!=='boolean')fail('Проверьте выбор подписки');
-  await e.DB.prepare('UPDATE account_registrations SET display_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 AND newsletter_opt_in=0 THEN CURRENT_TIMESTAMP WHEN ?=0 THEN NULL ELSE newsletter_consent_at END WHERE account_id=? AND registration_type=\'user\'').bind(name,data.newsletter?1:0,data.newsletter?1:0,data.newsletter?1:0,owner.id).run();return json({ok:true});
+ if(['/api/member/preferences','/api/profile/preferences'].includes(path)&&method==='PUT'){
+  const owner=await required(r,e),data=await body(r),name=owner.registration_type==='master'&&!data.name?'':text(data.name,2,100,'Имя'),lastName=data.lastName===undefined?(owner.last_name||''):data.lastName?text(data.lastName,1,100,'Фамилия'):'';if(typeof data.newsletter!=='boolean')fail('Проверьте выбор подписки');
+  await e.DB.prepare('UPDATE account_registrations SET display_name=?,last_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 AND newsletter_opt_in=0 THEN CURRENT_TIMESTAMP WHEN ?=0 THEN NULL ELSE newsletter_consent_at END WHERE account_id=? AND registration_type=?').bind(name,lastName,data.newsletter?1:0,data.newsletter?1:0,data.newsletter?1:0,owner.id,owner.registration_type).run();await queueContact(e,owner.id);return json({ok:true});
  }
  if(path==='/api/member/reviews'&&method==='GET'){
   const owner=await required(r,e);return json({reviews:(await e.DB.prepare('SELECT r.*,p.name master_name,f.id evidence_id,f.name evidence_name FROM reviews r JOIN profiles p ON p.id=r.master_id LEFT JOIN review_evidence f ON f.review_id=r.id WHERE r.author_id=? ORDER BY r.created_at DESC LIMIT 100').bind(owner.id).all()).results});

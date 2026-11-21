@@ -1,3 +1,4 @@
+import {queueContact} from './google-contacts.js';
 import {hash,hex,json} from './admin-auth.js';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status})};
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -37,7 +38,7 @@ export async function verifyEmail(e,token,now=Date.now()){
  if(!pending)fail('Ссылка истекла или уже использована. Запросите новое письмо в кабинете.');
  const updated=await e.DB.prepare('UPDATE account_registrations SET email_verified_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND EXISTS(SELECT 1 FROM email_verification_tokens WHERE token=? AND expires>?) RETURNING account_id').bind(pending.account_id,pending.registration_type,digest,now).first();
  if(!updated)fail('Ссылка истекла или уже использована. Запросите новое письмо в кабинете.');
- await e.DB.prepare('DELETE FROM email_verification_tokens WHERE account_id=? AND registration_type=?').bind(updated.account_id,pending.registration_type).run();return {ok:true,registration_type:pending.registration_type};
+ await e.DB.prepare('DELETE FROM email_verification_tokens WHERE account_id=? AND registration_type=?').bind(updated.account_id,pending.registration_type).run();await queueContact(e,pending.account_id);return {ok:true,registration_type:pending.registration_type};
 }
 export async function handleEmailVerification(r,e,{required,body,limit}){
  const path=new URL(r.url).pathname;

@@ -33,13 +33,13 @@ export async function googleCallback(r,e){
  if(!token.refresh_token)throw Error('Google не выдал постоянный доступ. Повторите подключение с подтверждением разрешений.');
  await setSetting(e,'google_tokens',await seal(e,{refresh_token:token.refresh_token,access_token:token.access_token,expires:Date.now()+Number(token.expires_in)*1000}));await audit(e,'google_connected');
 }
-async function googleToken(e){
+export async function googleToken(e){
  const stored=await getSetting(e,'google_tokens');if(!stored)throw Error('Сначала подключите Google');const token=await unseal(e,stored);
  if(token.access_token&&token.expires>Date.now()+60000)return token.access_token;
  const next=await tokenRequest(e,{refresh_token:token.refresh_token,grant_type:'refresh_token'});const updated={...token,access_token:next.access_token,expires:Date.now()+Number(next.expires_in)*1000};
  await setSetting(e,'google_tokens',await seal(e,updated));return next.access_token;
 }
-async function googleFetch(e,url,options={},accessToken){
+export async function googleFetch(e,url,options={},accessToken){
  const r=await fetch(url,{...options,headers:{Authorization:`Bearer ${accessToken||await googleToken(e)}`,...options.headers}});
  if(!r.ok)throw Object.assign(Error(`Google вернул ошибку ${r.status}. Данные сайта сохранены, повторите синхронизацию.`),{status:r.status});return r.status===204?{}:r.json();
 }

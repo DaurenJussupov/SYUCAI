@@ -1,3 +1,4 @@
+import {configureContactSheet,queueAllContacts,processContacts} from './google-contacts.js';
 import {handleCommunityAdmin,listReviewQueue,moderateReview} from './community.js';
 import {emailConfigured,emailSender,emailSite} from './email-verification.js';
 import {listPromotionRequests,moderatePromotion} from './promotions.js';
@@ -29,12 +30,13 @@ export async function handleAdmin(r,e,{body,limit}){
  }
  if(path==='/api/admin/reviews'&&method==='GET')return json({reviews:await listReviewQueue(e)});
  if(path==='/api/admin/reviews'&&method==='POST')return json(await moderateReview(e,await body(r),{id:'admin',admin:true}));
- if(path==='/api/admin/settings'&&method==='GET')return json({email:{configured:emailConfigured(e),from:emailSender(e),siteUrl:emailSite(e)},google:{configured:googleConfigured(e),connected:!!await getSetting(e,'google_tokens'),folder:await getSetting(e,'google_folder_id'),sheet:await getSetting(e,'google_sheet_id')},measurementId:await getSetting(e,'ga_measurement_id')||e.GA_MEASUREMENT_ID||'',propertyId:await getSetting(e,'ga_property_id'),redirectUri:new URL('/api/admin/google/callback',r.url).href,sync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM sync_jobs GROUP BY status').all()).results});
+ if(path==='/api/admin/settings'&&method==='GET')return json({email:{configured:emailConfigured(e),from:emailSender(e),siteUrl:emailSite(e)},google:{configured:googleConfigured(e),connected:!!await getSetting(e,'google_tokens'),folder:await getSetting(e,'google_folder_id'),sheet:await getSetting(e,'google_sheet_id'),contactsSheet:await getSetting(e,'google_contacts_sheet_id')},measurementId:await getSetting(e,'ga_measurement_id')||e.GA_MEASUREMENT_ID||'',propertyId:await getSetting(e,'ga_property_id'),redirectUri:new URL('/api/admin/google/callback',r.url).href,contactSync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM contact_sync_jobs GROUP BY status').all()).results,contactErrors:(await e.DB.prepare("SELECT last_error FROM contact_sync_jobs WHERE status='error' ORDER BY updated_at DESC LIMIT 3").all()).results,sync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM sync_jobs GROUP BY status').all()).results});
  if(path==='/api/admin/settings'&&method==='PUT'){
   const b=await body(r),measurement=String(b.measurementId||'').trim().toUpperCase(),property=String(b.propertyId||'').trim();
   if(measurement&&!/^G-[A-Z0-9]{4,20}$/.test(measurement))return json({error:'Идентификатор Google Analytics должен иметь вид G-…'},400);if(property&&!/^\d{1,20}$/.test(property))return json({error:'ID ресурса GA4 должен содержать только цифры'},400);
   await setSetting(e,'ga_measurement_id',measurement);await setSetting(e,'ga_property_id',property);await audit(e,'analytics_settings');return json({ok:true});
  }
+ if(path==='/api/admin/google/contacts'&&method==='POST'){const data=await body(r);if(data.sheet){const configured=await configureContactSheet(e,data.sheet);await audit(e,'contacts_sheet_configured');return json(configured)}await queueAllContacts(e);return json(await processContacts(e,3))}
  if(path==='/api/admin/google/connect'&&method==='POST')return json({url:await connectGoogle(r,e)});
  if(path==='/api/admin/google/callback'&&method==='GET'){
   try{await googleCallback(r,e);return new Response(null,{status:303,headers:{Location:'/admin?google=connected','Cache-Control':'no-store'}})}catch{return new Response(null,{status:303,headers:{Location:'/admin?google=error','Cache-Control':'no-store'}})}

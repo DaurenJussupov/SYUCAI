@@ -39,6 +39,7 @@ export async function handleBlogCommunity(r,e,{body,limit}){
  if(image&&method==='GET'){
   const file=await e.DB.prepare('SELECT i.*,b.status,b.author_id FROM blog_images i JOIN blog_posts b ON b.id=i.post_id WHERE i.id=?').bind(image[1]).first();if(!file)fail('Изображение не найдено',404);
   if(file.status!=='published'){const actor=await moderatorActor(r,e);if(!actor.admin&&actor.id!==file.author_id)fail('Изображение не найдено',404)}
+  if(file.object_key.startsWith('asset:/images/blog/'))return e.ASSETS.fetch(new Request(new URL(file.object_key.slice(6),r.url)));
   const object=await e.FILES.get(file.object_key);if(!object)fail('Изображение не найдено',404);return new Response(object.body,{headers:{'Content-Type':file.mime,'Cache-Control':'private, no-store'}});
  }
  if(!path.startsWith('/api/moderator/'))return null;
@@ -59,14 +60,14 @@ export async function handleBlogCommunity(r,e,{body,limit}){
  if(upload){
   const post=await e.DB.prepare('SELECT author_id FROM blog_posts WHERE id=?').bind(upload[1]).first();if(!post)fail('Новость не найдена',404);if(!actor.admin&&post.author_id!==actor.id)fail('Можно редактировать только свои новости',403);
   const old=await e.DB.prepare('SELECT * FROM blog_images WHERE post_id=?').bind(upload[1]).first();
-  if(method==='DELETE'){await e.DB.prepare('DELETE FROM blog_images WHERE post_id=?').bind(upload[1]).run();if(old)await e.FILES.delete(old.object_key);await audit(e,'blog_image_removed',upload[1]);return json({ok:true})}
+  if(method==='DELETE'){await e.DB.prepare('DELETE FROM blog_images WHERE post_id=?').bind(upload[1]).run();if(old&&!old.object_key.startsWith('asset:'))await e.FILES.delete(old.object_key);await audit(e,'blog_image_removed',upload[1]);return json({ok:true})}
   if(method!=='POST')return json({error:'Метод не поддерживается'},405);
   await limit(r,e,'blog-image',30);if(+(r.headers.get('content-length')||0)>6*1024*1024)fail('Максимальный размер файла — 5 МБ',413);
   const form=await r.formData(),file=form.get('image');if(!(file instanceof File)||!file.size||file.size>5*1024*1024)fail('Выберите JPG, PNG или WebP до 5 МБ');
   const buffer=await file.arrayBuffer(),bytes=new Uint8Array(buffer),signature=String.fromCharCode(...bytes.slice(0,12));if(!(file.type==='image/jpeg'&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255||file.type==='image/png'&&bytes[0]===137&&signature.slice(1,4)==='PNG'||file.type==='image/webp'&&signature.startsWith('RIFF')&&signature.slice(8,12)==='WEBP'))fail('Содержимое файла не соответствует изображению');
   const id=crypto.randomUUID(),key='blog-images/'+upload[1]+'/'+id;await e.FILES.put(key,buffer,{httpMetadata:{contentType:file.type}});
   try{await e.DB.prepare('INSERT INTO blog_images(id,post_id,object_key,mime,uploaded_by) VALUES(?,?,?,?,?) ON CONFLICT(post_id) DO UPDATE SET id=excluded.id,object_key=excluded.object_key,mime=excluded.mime,uploaded_by=excluded.uploaded_by').bind(id,upload[1],key,file.type,actor.id).run()}catch(error){await e.FILES.delete(key).catch(()=>{});throw error}
-  if(old)await e.FILES.delete(old.object_key).catch(()=>{});await audit(e,'blog_image_uploaded',upload[1]);return json({ok:true,id},201);
+  if(old&&!old.object_key.startsWith('asset:'))await e.FILES.delete(old.object_key).catch(()=>{});await audit(e,'blog_image_uploaded',upload[1]);return json({ok:true,id},201);
  }
  return null;
 }

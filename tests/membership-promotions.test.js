@@ -32,10 +32,10 @@ test('trial is three calendar months from registration, with leap-year and end-o
  const end='2027-02-21T01:02:03.000Z';assert.equal(trialPeriod('2026-11-21 01:02:03',new Date(end)).active,false);assert.equal(trialPeriod('2026-11-21 01:02:03',new Date('2027-02-21T01:02:02Z')).active,true);
  assert.equal(trialPeriod('invalid'),null);
 });
-test('promotion requests require authentication, published profiles and integer durations 1–30',async()=>{
+test('promotion requests require authentication, published profiles and integer durations 1–3',async()=>{
  const e=await fixture();try{
  assert.equal((await request(e,'/promotions',{method:'POST',body:{days:1}})).status,401);
- for(const days of [0,31,1.5,'3',null])assert.equal((await create(e,days)).status,400);
+ for(const days of [0,4,30,31,1.5,'3',null])assert.equal((await create(e,days)).status,400);
  e.sqlite.prepare("UPDATE profiles SET status='pending' WHERE id=?").run(owner);assert.equal((await create(e)).status,400);
  assert.equal((await request(e,'/admin/promotions')).status,401);
  const csrf=await request(e,'/promotions',{method:'POST',headers:{...headers,Origin:'https://evil.test'},body:{days:1}});assert.equal(csrf.status,403);
@@ -43,8 +43,8 @@ test('promotion requests require authentication, published profiles and integer 
 });
 test('requests are private and duplicate requests cannot bypass moderation or choose another master',async()=>{
  const e=await fixture();try{
- const response=await request(e,'/promotions',{method:'POST',headers,body:{days:30,master_id:other,status:'active',price:0}});assert.equal(response.status,201);
- const row=e.sqlite.prepare('SELECT * FROM promotions').get();assert.equal(row.master_id,owner);assert.equal(row.status,'pending');assert.equal(row.days,30);assert.equal(row.starts_at,null);assert.equal(row.price,undefined);
+ const response=await request(e,'/promotions',{method:'POST',headers,body:{days:3,master_id:other,status:'active',price:0}});assert.equal(response.status,201);
+ const row=e.sqlite.prepare('SELECT * FROM promotions').get();assert.equal(row.master_id,owner);assert.equal(row.status,'pending');assert.equal(row.days,3);assert.equal(row.starts_at,null);assert.equal(row.price,undefined);
  assert.equal((await create(e,1)).status,409);const listed=await(await request(e,'/promotions',{headers})).json();assert.equal(listed.promotions[0].id,row.id);
  const otherToken='b'.repeat(64);await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(otherToken),other,Date.now()+60000).run();assert.equal((await(await request(e,'/promotions',{headers:{Cookie:'session='+otherToken}})).json()).promotions.length,0);
  const masters=(await(await request(e,'/masters?city=almaty')).json()).masters;assert.equal(masters.find(m=>m.id===owner).promoted,0);

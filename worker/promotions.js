@@ -11,7 +11,7 @@ export async function handlePromotions(r,e,{required,body,limit}){
  if(r.method==='GET')return json({promotions:await ownPromotions(e,owner.id)});
  if(r.method!=='POST')return json({error:'Метод не поддерживается'},405);
  await limit(r,e,'promotion',10);const data=await body(r);
- if(!data||!Number.isInteger(data.days)||data.days<1||data.days>30)fail('Выберите срок продвижения от 1 до 30 дней');
+ if(!data||!Number.isInteger(data.days)||data.days<1||data.days>3)fail('Выберите срок продвижения от 1 до 3 дней');
  const profile=await e.DB.prepare('SELECT status FROM profiles WHERE id=?').bind(owner.id).first();
  if(profile?.status!=='approved')fail('Продвижение доступно после публикации анкеты');
  await expirePromotions(e);const id=crypto.randomUUID();
@@ -29,6 +29,7 @@ export async function moderatePromotion(e,data){
  const note=typeof data.note==='string'?data.note.trim().slice(0,1000):'';
  let changed;
  if(action==='activate'){
+  if(request.days>3)fail('Заявку на срок более 3 дней нужно отклонить и оформить заново');
   if(request.profile_status!=='approved')fail('Для продвижения анкета должна быть опубликована');
   changed=await e.DB.prepare("UPDATE promotions SET status='active',starts_at=CURRENT_TIMESTAMP,ends_at=datetime('now','+'||days||' days'),moderation_note=? WHERE id=? AND status='pending' AND EXISTS(SELECT 1 FROM profiles WHERE id=promotions.master_id AND status='approved') RETURNING id").bind(note,id).first();
  }else changed=await e.DB.prepare(`UPDATE promotions SET status=?,moderation_note=? WHERE id=? AND status=? RETURNING id`).bind(action==='reject'?'rejected':'cancelled',note,id,action==='reject'?'pending':'active').first();
