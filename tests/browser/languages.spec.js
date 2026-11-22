@@ -20,7 +20,7 @@ test('registration, email status, trial and promotion controls translate without
 });
 test('language picker is before burger, lists every language once in alphabetical order and filters',async({page})=>{
  await mockTranslations(page);await page.goto('/');
- await page.locator('#language-button').click();await expect(page.locator('.language-option')).toHaveCount(35);await expect(page.locator('[data-language=ce]')).toHaveCount(0);
+ await page.locator('#language-button').click();await expect(page.locator('.language-option')).toHaveCount(34);await expect(page.locator('[data-language=ce]')).toHaveCount(0);await expect(page.locator('[data-language=inh]')).toHaveCount(0);
  expect(await page.locator('.language-option').evaluateAll(nodes=>nodes.map(n=>n.dataset.language))).toEqual(sortedLanguages().map(l=>l.code));
  const position=await page.evaluate(()=>({language:document.querySelector('#language-button').getBoundingClientRect().right,burger:document.querySelector('.menu-button').getBoundingClientRect().left}));expect(position.language).toBeLessThan(position.burger);
  await page.locator('#language-search').fill('KZ');await expect(page.locator('.language-option')).toHaveCount(1);await expect(page.locator('.language-option')).toHaveAttribute('data-language','kk');
