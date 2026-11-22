@@ -51,8 +51,23 @@ export async function translateBatch(sources,target,{request=fetch,pause=wait}={
        const single=new URL(provider);single.search=new URLSearchParams({client:'gtx',sl:'ru',tl:target,dt:'t',dj:'1',q:source});
        const plain=await request(single.href,{signal:AbortSignal.timeout(15000)});
        if(!plain.ok)throw Object.assign(Error(`Translation provider returned HTTP ${plain.status} for ${target}.`),{status:plain.status});
-       const value=responseText(await plain.json()).trim(),valid=catalogTranslations({locale:target,translations:{[source]:value}},{strings:[source]},target);
-       if(!valid[source])throw markerError;decoded[source]=value;await pause(120);
+       let value=responseText(await plain.json()).trim();
+       const valid=translated=>catalogTranslations({locale:target,translations:{[source]:translated}},{strings:[source]},target)[source];
+       if(!valid(value)&&/\{\d+\}/.test(source)){
+        // A provider may translate/remove {0}. Translate only fixed text around
+        // such slots; never guess a replacement or change runtime values.
+        const parts=source.split(/(\{\d+\})/g),restored=[];
+        for(const part of parts){
+         if(!/[А-Яа-яЁё]/.test(part)){restored.push(part);continue}
+         const segment=new URL(provider);segment.search=new URLSearchParams({client:'gtx',sl:'ru',tl:target,dt:'t',dj:'1',q:part.trim()});
+         const answer=await request(segment.href,{signal:AbortSignal.timeout(15000)});
+         if(!answer.ok)throw Object.assign(Error(`Translation provider returned HTTP ${answer.status} for ${target}.`),{status:answer.status});
+         const text=responseText(await answer.json()).trim();if(!text)throw markerError;
+         restored.push(part.slice(0,part.length-part.trimStart().length)+text+part.slice(part.trimEnd().length));await pause(120);
+        }
+        value=restored.join('');
+       }
+       if(!valid(value))throw markerError;decoded[source]=value;await pause(120);
       }
      }
      Object.assign(translations,decoded);done=true;break;
