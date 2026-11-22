@@ -1,9 +1,10 @@
+import {verifyTestAccount} from './verify-test-account.js';
 import {test,expect} from '@playwright/test';
 const origin='http://127.0.0.1:8787';
 const admin={Origin:origin,Authorization:'Bearer local-test-admin'};
 test('unfinished form autosaves across reload; admin sees draft and integration setup',async({page,browser})=>{
  const email=`draft-${Date.now()}@example.com`;
- await page.goto('/account');await page.locator('#master-first-name').fill('Anara');await page.locator('#master-last-name').fill('Draft');await page.locator('#email').fill(email);await page.locator('#password').fill('TestPassword123!');await page.locator('#password-confirm').fill('TestPassword123!');await page.locator('.consent input[required]').check();await page.getByRole('button',{name:'Создать аккаунт'}).click();await expect(page.locator('#profile-form')).toBeVisible();
+ await page.goto('/account');await page.locator('#master-first-name').fill('Anara');await page.locator('#master-last-name').fill('Draft');await page.locator('#email').fill(email);await page.locator('#password').fill('TestPassword123!');await page.locator('#password-confirm').fill('TestPassword123!');await page.locator('.consent input[required]').check();await page.getByRole('button',{name:'Создать аккаунт'}).click();await expect(page.locator('#profile-form')).toBeVisible();await verifyTestAccount(page);
  await expect(page.locator('#profile-form [name=name]')).toHaveValue('Anara Draft');await page.locator('[name=credentials]').fill('Diploma draft');await page.locator('#profile-city').fill('Алматы, Казахстан');await expect(page.locator('#draft-status')).toHaveText('Черновик сохранён');
  await page.reload();await expect(page.locator('#profile-form [name=name]')).toHaveValue('Anara Draft');await expect(page.locator('[name=credentials]')).toHaveValue('Diploma draft');
  const ctx=await browser.newContext(),manager=await ctx.newPage();await manager.goto(origin+'/admin');await manager.locator('#admin-token').fill('local-test-admin');await manager.getByRole('button',{name:'Открыть анкеты'}).click();const card=manager.locator('.admin-profile').filter({hasText:email});await expect(card).toContainText('Anara Draft');await expect(card.getByRole('button',{name:'Опубликовать'})).toBeDisabled();

@@ -1,7 +1,7 @@
 import {hash,hex,equal,json,enqueue} from './admin-auth.js';
 import {getUser,registrationType} from './accounts.js';
 import {emailConfigured,emailSender} from './email-verification.js';
-import {sixDigitCode} from './password-recovery.js';
+import {sixDigitCode} from './security-codes.js';
 import {queueContact} from './google-contacts.js';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status})};
 const invalid=()=>fail('Код неверный или срок его действия истёк. Запросите новый код.');

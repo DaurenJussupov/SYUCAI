@@ -1,3 +1,5 @@
+import {sixDigitCode} from './security-codes.js';
+export {sixDigitCode} from './security-codes.js';
 import {hash,hex,equal,json} from './admin-auth.js';
 import {registrationType,findRegistration,loginSession} from './accounts.js';
 import {emailConfigured,emailSender} from './email-verification.js';
@@ -6,7 +8,7 @@ const fail=(message,status=400)=>{throw Object.assign(Error(message),{status})};
 const invalid=()=>fail('Код неверный или срок его действия истёк. Запросите новый код.');
 const random=()=>hex(crypto.getRandomValues(new Uint8Array(32)));
 const resetCookie=(r,type,value,age=600)=>`password_reset_${type}=${value}; Path=/api/auth/password-reset; HttpOnly; SameSite=Strict; Max-Age=${age}${new URL(r.url).protocol==='https:'?'; Secure':''}`;
-export function sixDigitCode(){const sample=new Uint32Array(1);do{crypto.getRandomValues(sample)}while(sample[0]>=4294000000);return String(sample[0]%1000000).padStart(6,'0')}
+
 async function sendCode(e,email,type,code,request){
  const section=type==='master'?'профиля мастера':'профиля пользователя';
  try{const response=await request('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${e.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':'recovery-'+random()},body:JSON.stringify({from:emailSender(e),to:[email],subject:'Код восстановления пароля '+section+' — SYUCAI',text:`Код для восстановления пароля ${section} на syucai.me: ${code}\n\nКод действует 10 минут. Никому его не сообщайте. Если Вы не запрашивали восстановление, проигнорируйте письмо. Ваш пароль не изменится без подтверждения.`,html:`<!doctype html><html lang="ru"><body style="font-family:Arial,sans-serif;line-height:1.7;color:#242427;padding:28px"><h1 style="font-size:24px">Восстановление пароля</h1><p>Код для ${section} на сайте SYUCAI:</p><p style="font-size:32px;font-weight:bold;letter-spacing:8px">${code}</p><p>Код действует 10 минут. Никому его не сообщайте.</p><p>Если Вы не запрашивали восстановление, проигнорируйте письмо. Ваш пароль не изменится без подтверждения.</p></body></html>`}),signal:AbortSignal.timeout(10000)});

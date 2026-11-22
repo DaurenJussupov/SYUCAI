@@ -66,7 +66,7 @@ export async function handleCommunity(r,e,{required,body,limit}){
  const postPath=path.match(/^\/api\/blog\/([a-z0-9-]+)$/);if(postPath&&method==='GET')return json(await publicBlog(e,postPath[1]));
  if(!path.startsWith('/api/moderator/'))return null;
  const actor=await communityActor(r,e,required);
- if(path==='/api/moderator/applications'&&method==='GET')return json(await applicationList(e,url));
+ if(path==='/api/moderator/applications'&&method==='GET')return json(await applicationList(e,url,{admin:actor.admin}));
  if(path==='/api/moderator/applications'&&method==='POST')return json(await moderateApplication(e,await body(r),actor));
  if(path==='/api/moderator/session'&&method==='GET')return json({ok:true,admin:actor.admin});
  if(path==='/api/moderator/reviews'&&method==='GET')return json({reviews:await listReviewQueue(e)});

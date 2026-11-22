@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {database} from './helpers/database.js';
 import worker from '../worker/index.js';
-import {sendVerification,verifyEmail} from '../worker/email-verification.js';
+import {sendVerification,verifyEmailCode} from '../worker/email-verification.js';
 import {hash} from '../worker/admin-auth.js';
 const origin='https://syucai.test',email='same@example.test',passwords={master:'MasterPassword123!',user:'UserPassword456!'};
 const request=(e,path,{type='master',method='GET',body,cookies=''}={})=>worker.fetch(new Request(origin+'/api'+path,{method,headers:{'X-Account-Type':type,...(cookies?{Cookie:cookies}:{}),...(method==='GET'?{}:{Origin:origin,'Content-Type':'application/json'})},...(body?{body:JSON.stringify(body)}:{})}),e);
@@ -27,9 +27,9 @@ test('email confirmation is bound to its section and never consumes the other co
  const master=await(await register(e,'master')).json();await register(e,'user');const messages=[];e.RESEND_API_KEY='test-only';
  const send=async(_url,options)=>{messages.push(JSON.parse(options.body));return new Response(JSON.stringify({id:'accepted'}),{headers:{'Content-Type':'application/json'}})};
  for(const type of ['master','user'])await sendVerification(e,{id:master.user.id,email,registration_type:type},{request:send});
- const tokens=messages.map(m=>m.text.match(/#token=([a-f0-9]{64})/)[1]);assert.ok(messages[0].text.includes('&type=master'));assert.ok(messages[1].text.includes('&type=user'));
- await verifyEmail(e,tokens[0]);const rows=e.sqlite.prepare('SELECT registration_type,email_verified_at FROM account_registrations ORDER BY registration_type').all();assert.ok(rows[0].email_verified_at);assert.equal(rows[1].email_verified_at,null);assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,1);
- await verifyEmail(e,tokens[1]);assert.ok(e.sqlite.prepare("SELECT email_verified_at FROM account_registrations WHERE registration_type='user'").get().email_verified_at);
+ const codes=messages.map(m=>m.text.match(/: (\d{6})/)[1]);assert.ok(messages[0].text.includes('профиля мастера'));assert.ok(messages[1].text.includes('профиля пользователя'));
+ await verifyEmailCode(e,{id:master.user.id,registration_type:'master'},codes[0]);const rows=e.sqlite.prepare('SELECT registration_type,email_verified_at FROM account_registrations ORDER BY registration_type').all();assert.ok(rows[0].email_verified_at);assert.equal(rows[1].email_verified_at,null);assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_confirmation_codes').get().n,1);
+ await verifyEmailCode(e,{id:master.user.id,registration_type:'user'},codes[1]);assert.ok(e.sqlite.prepare("SELECT email_verified_at FROM account_registrations WHERE registration_type='user'").get().email_verified_at);
  }finally{e.close()}
 });
 test('legacy sessions stay in their section; logout removes legacy fallback without logging out the other section',async()=>{

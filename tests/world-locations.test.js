@@ -32,7 +32,7 @@ test('same free-text city wins over promotions; unknown distances stay null and 
 test('real profile API saves country and arbitrary city, restores drafts and searches public profiles without fabricated distances',async()=>{
  const e={...database(),ASSETS:{fetch:async()=>new Response('assets')}};try{
  e.sqlite.prepare('INSERT INTO accounts(id,email,password,salt) VALUES(?,?,?,?)').run(owner,'owner@example.test','hash','salt');
- e.sqlite.prepare("UPDATE account_registrations SET display_name='World',last_name='Master' WHERE account_id=?").run(owner);
+ e.sqlite.prepare("UPDATE account_registrations SET display_name='World',last_name='Master',email_verified_at=CURRENT_TIMESTAMP WHERE account_id=?").run(owner);
  await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash(token),owner,Date.now()+60000).run();
  for(const kind of ['photo','document'])e.sqlite.prepare('INSERT INTO files VALUES(?,?,?,?,?,?)').run(kind,owner,kind,kind,kind==='photo'?'image/png':'application/pdf',kind+'.pdf');
  const data={name:'World Master',bio:'A sufficiently detailed biography about international consultations and professional experience.',credentials:'Diploma',phone:'+12025550123',city_name:'New York'};
