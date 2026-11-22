@@ -43,7 +43,19 @@ export async function translateBatch(sources,target,{request=fetch,pause=wait}={
      const response=await request(url.href,{signal:AbortSignal.timeout(15000)});
      if([429,500,502,503,504].includes(response.status)&&attempt<2){const seconds=Number(response.headers?.get('retry-after'));await pause(Number.isFinite(seconds)&&seconds>0?seconds*1000:2000*2**attempt);continue}
      if(!response.ok)throw Object.assign(Error(`Translation provider returned HTTP ${response.status} for ${target}.`),{status:response.status});
-     Object.assign(translations,decodeBatch(responseText(await response.json()),group));done=true;break;
+     const translated=responseText(await response.json());let decoded;
+     try{decoded=decodeBatch(translated,group)}catch(markerError){
+      // Some supported languages rewrite batching markers. Retry actual messages
+      // only after a successful JSON response, never after a block/CAPTCHA.
+      decoded={};for(const source of group){
+       const single=new URL(provider);single.search=new URLSearchParams({client:'gtx',sl:'ru',tl:target,dt:'t',dj:'1',q:source});
+       const plain=await request(single.href,{signal:AbortSignal.timeout(15000)});
+       if(!plain.ok)throw Object.assign(Error(`Translation provider returned HTTP ${plain.status} for ${target}.`),{status:plain.status});
+       const value=responseText(await plain.json()).trim(),valid=catalogTranslations({locale:target,translations:{[source]:value}},{strings:[source]},target);
+       if(!valid[source])throw markerError;decoded[source]=value;await pause(120);
+      }
+     }
+     Object.assign(translations,decoded);done=true;break;
     }catch(error){lastError=error;if(!error.status&&attempt<2){await pause(1000*2**attempt);continue}break}
    }
    if(done)break;

@@ -8,7 +8,7 @@ let active=false;
 const format=(date,options)=>new Intl.DateTimeFormat(currentLanguage(),options).format(date);
 const shortDate=date=>format(date,{day:'numeric',month:'long',year:'numeric'});
 function guidance(day,label,kind){
- return `<article class="result-card" data-calendar-result="${kind}"><div class="eyebrow">${label}</div><div class="number">${day.value}</div><h3>${escape(day.data.title)}</h3><p class="calc">${escape(day.calc)}</p><p class="intro">${escape(day.data.summary)}</p><div class="day-guidance"><h4>Что делать</h4><p>${escape(day.data.todo)}</p><h4>Чего избегать</h4><p>${escape(day.data.avoid)}</p></div></article>`;
+ return `<article class="result-card" data-calendar-result="${kind}"><div class="eyebrow">${label}</div><div class="number">${day.value}</div><h3>${escape(day.data.title)}</h3><p class="calc">${escape(day.calc)}</p><p class="intro">${escape(currentLanguage()==='ru'?day.data.summary.replace(/Сюцай/gi,'SYUCAI'):translateText(day.data.summary))}</p><div class="day-guidance"><h4>Что делать</h4><p>${escape(day.data.todo)}</p><h4>Чего избегать</h4><p>${escape(day.data.avoid)}</p></div></article>`;
 }
 function renderPanel(){
  const panel=document.querySelector('#calendar-panel');if(!active||!panel||!state.birth)return;

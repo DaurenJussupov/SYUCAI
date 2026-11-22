@@ -582,3 +582,9 @@ select.control { appearance: auto; }
 .recovery-actions button { font-size: 12px; }
 .forgot-password { margin: 0 0 18px; font-size: 13px; }
 @media(max-width:420px) { .recovery-layout .auth-card { padding: 23px 18px; } .otp-fields { gap: 6px; } .otp-fields .otp-digit { height: 48px; font-size: 20px; } }
+
+.application-sections { margin-bottom: 22px; }
+#application-search-form { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.identity-section { max-width: 600px; margin-bottom: 30px; }
+.identity-section #identity-code-area .auth-card { margin-top: 20px; }
+.seo-navigation{position:relative}.seo-navigation nav{position:absolute;right:0;background:#fff;padding:20px;z-index:10;min-width:220px;box-shadow:0 6px 24px #0002}.seo-navigation a,.seo-language-links a{display:inline-block;margin:6px 12px 6px 0}.seo-guide section{margin-top:32px}.guide-links{display:flex;flex-wrap:wrap;gap:12px}

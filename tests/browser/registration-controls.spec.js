@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 test('registration requires confirmation, each password has its own visibility toggle, and trial terms appear in the account',async({page})=>{
- await page.setViewportSize({width:390,height:844});await page.goto('/account');await page.locator('#email').fill(`confirmation-${Date.now()}@example.com`);await page.locator('#password').fill('TestPassword123!');await page.locator('.consent input[required]').check();
+ await page.setViewportSize({width:390,height:844});await page.goto('/account');await page.locator('#master-first-name').fill('Test');await page.locator('#master-last-name').fill('Master');await page.locator('#email').fill(`confirmation-${Date.now()}@example.com`);await page.locator('#password').fill('TestPassword123!');await page.locator('.consent input[required]').check();
  await page.getByRole('button',{name:'Создать аккаунт',exact:true}).click();expect(await page.locator('#password-confirm').evaluate(input=>input.validity.valueMissing)).toBe(true);
  await page.locator('#password-confirm').fill('DifferentPassword!');await page.getByRole('button',{name:'Создать аккаунт',exact:true}).click();await expect(page.locator('#auth-error')).toHaveText('Пароли не совпадают');
  await page.locator('[data-password-toggle=password]').click();await expect(page.locator('#password')).toHaveAttribute('type','text');await expect(page.locator('#password-confirm')).toHaveAttribute('type','password');await expect(page.locator('[data-password-toggle=password]')).toHaveAttribute('aria-label','Скрыть пароль');

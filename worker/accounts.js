@@ -12,7 +12,7 @@ const cookie=(r,type,token,age=604800)=>`${type?'session_'+type:'session'}=${tok
 export async function getUser(r,e,type=requestAccountType(r)){
  const scoped=tokenFor(r,'session_'+type),token=scoped||tokenFor(r,'session');if(!token)return null;
  const from=scoped?'scoped_sessions s JOIN accounts a ON a.id=s.account_id JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=s.registration_type':'sessions s JOIN accounts a ON a.id=s.account_id JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=a.registration_type';
- return e.DB.prepare('SELECT a.id,a.email,g.display_name,g.last_name,g.registration_type,g.role,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,g.email_verified_at,g.email_verification_sent_at FROM '+from+' WHERE s.token=? AND s.expires>? AND g.registration_type=?').bind(await hash(token),Date.now(),type).first();
+ return e.DB.prepare('SELECT a.id,a.email,g.display_name,g.last_name,g.registration_type,g.role,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,g.email_verified_at,g.email_verification_sent_at,g.application_status,g.application_note,g.rework_since,g.archived_at,g.deleted_at FROM '+from+' WHERE s.token=? AND s.expires>? AND g.registration_type=?').bind(await hash(token),Date.now(),type).first();
 }
 export async function findRegistration(e,email,type){return e.DB.prepare('SELECT a.id,a.email,g.* FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE a.email=? AND g.registration_type=?').bind(email,type).first()}
 export async function moderatorActor(r,e){

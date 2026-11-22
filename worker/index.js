@@ -1,3 +1,6 @@
+import {handleSeo} from './seo.js';
+import {moderateApplication,handleMemberResubmission} from './applications.js';
+import {handleProfileIdentity} from './profile-identity.js';
 import {handlePasswordRecovery} from './password-recovery.js';
 import {queueContact,processContacts} from './google-contacts.js';
 import {handleBlogCommunity} from './blog-community.js';
@@ -32,7 +35,9 @@ async function api(r,e,ctx){
  }
  const admin=await handleAdmin(r,e,{body,limit});if(admin)return admin;
  const blogCommunity=await handleBlogCommunity(r,e,{body,limit});if(blogCommunity)return blogCommunity;
+ const resubmission=await handleMemberResubmission(r,e,{required});if(resubmission)return resubmission;
  const community=await handleCommunity(r,e,{required,body,limit});if(community)return community;
+ const identity=await handleProfileIdentity(r,e,{body,limit,text});if(identity)return identity;
  const recovery=await handlePasswordRecovery(r,e,{body,limit,password,text,waitUntil:ctx?job=>ctx.waitUntil(job):undefined});if(recovery)return recovery;
  const emailVerification=await handleEmailVerification(r,e,{required,body,limit});if(emailVerification)return emailVerification;
  const promotion=await handlePromotions(r,e,{required,body,limit});if(promotion)return promotion;
@@ -43,7 +48,7 @@ async function api(r,e,ctx){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Введите корректный email');
   if(typeof b.passwordConfirm!=='string'||!b.passwordConfirm)fail('Повторите пароль');
   if(b.passwordConfirm!==b.password)fail('Пароли не совпадают');
-  const displayName=type==='user'?text(b.name,2,100,'Имя'):(b.name?text(b.name,2,100,'Имя'):''),lastName=b.lastName?text(b.lastName,1,100,'Фамилия'):'';if(b.newsletter!==undefined&&typeof b.newsletter!=='boolean')fail('Проверьте выбор подписки');const subscribed=b.newsletter===true?1:0;
+  const displayName=text(b.name,1,100,'Имя'),lastName=text(b.lastName,1,100,'Фамилия');if(b.newsletter!==undefined&&typeof b.newsletter!=='boolean')fail('Проверьте выбор подписки');const subscribed=b.newsletter===true?1:0;
   const salt=crypto.randomUUID();
   const registered=await createRegistration(e,{email,password:await password(pass,salt),salt,type,displayName,subscribed,lastName});
   await queueContact(e,registered.id);
@@ -61,17 +66,21 @@ async function api(r,e,ctx){
  if(path==='/api/profile/draft'&&method==='PUT'){
   const u=await required(r,e),b=await body(r),draft={};
   for(const [key,max] of Object.entries({name:100,city_id:200,city_text:120,city_name:120,country_code:2,phone:30,bio:4000,credentials:1000}))if(typeof b[key]==='string')draft[key]=b[key].slice(0,max);
+  draft.name=u.display_name&&u.last_name?u.display_name+' '+u.last_name:(await e.DB.prepare('SELECT name FROM profiles WHERE id=?').bind(u.id).first())?.name||'';
   await e.DB.prepare('INSERT INTO profile_drafts(account_id,data) VALUES(?,?) ON CONFLICT(account_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP').bind(u.id,JSON.stringify(draft)).run();await enqueue(e,u.id);return json({ok:true});
  }
  if(path==='/api/profile'&&method==='PUT'){
   const u=await required(r,e),b=await body(r),city=resolveLocation(b);
-  const name=text(b.name,3,100,'Имя'),bio=text(b.bio,80,4000,'Описание'),credentials=text(b.credentials,5,1000,'Квалификация'),phone=text(b.phone,10,16,'WhatsApp').replace(/^\+/,'');if(!/^\d{10,15}$/.test(phone))fail('Телефон: от 10 до 15 цифр с кодом страны');
+  const legacy=await e.DB.prepare('SELECT name FROM profiles WHERE id=?').bind(u.id).first();
+  if(u.archived_at||u.deleted_at)fail('Анкета скрыта администратором. Обратитесь к администратору для восстановления.',403);
+  const name=u.display_name?.trim()&&u.last_name?.trim()?u.display_name.trim()+' '+u.last_name.trim():legacy?.name;if(!name)fail('Заполните и подтвердите имя и фамилию в контактных данных');
+  const bio=text(b.bio,80,4000,'Описание'),credentials=text(b.credentials,5,1000,'Квалификация'),phone=text(b.phone,10,16,'WhatsApp').replace(/^\+/,'');if(!/^\d{10,15}$/.test(phone))fail('Телефон: от 10 до 15 цифр с кодом страны');
   const files=(await e.DB.prepare('SELECT * FROM files WHERE account_id=?').bind(u.id).all()).results;
   const photo=files.find(f=>f.kind==='photo');if(!photo||!files.some(f=>f.kind==='document'))fail('Загрузите фото и хотя бы один диплом');
   await e.DB.prepare(`INSERT INTO profiles(id,name,city_id,country,lat,lon,bio,credentials,phone,photo,status,city_name,country_code,coordinates_known) VALUES(?,?,?,?,?,?,?,?,?,?,'pending',?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,city_id=excluded.city_id,city_name=excluded.city_name,country=excluded.country,country_code=excluded.country_code,lat=excluded.lat,lon=excluded.lon,coordinates_known=excluded.coordinates_known,bio=excluded.bio,credentials=excluded.credentials,phone=excluded.phone,photo=excluded.photo,status='pending',moderation_note='',updated_at=CURRENT_TIMESTAMP`).bind(u.id,name,city.id,city.country,city.lat??0,city.lon??0,bio,credentials,phone,photo.id,city.name,city.country_code,city.lat!==null?1:0).run();await e.DB.prepare('DELETE FROM profile_drafts WHERE account_id=?').bind(u.id).run();await enqueue(e,u.id);return json({ok:true,status:'pending'});
  }
  if(path==='/api/files'&&method==='POST'){
-  const u=await required(r,e);await limit(r,e,'upload',40);
+  const u=await required(r,e);if(u.archived_at||u.deleted_at)fail('Анкета скрыта администратором',403);await limit(r,e,'upload',40);
   if(+(r.headers.get('content-length')||0)>6*1024*1024)fail('Максимальный размер файла — 5 МБ',413);
   const form=await r.formData(),file=form.get('file'),kind=form.get('kind');if(!(file instanceof File)||!['photo','document'].includes(kind))fail('Выберите файл');
   if(file.size>5*1024*1024||!file.size)fail('Размер файла: до 5 МБ',413);
@@ -81,14 +90,14 @@ async function api(r,e,ctx){
   const count=await e.DB.prepare('SELECT COUNT(*) n FROM files WHERE account_id=? AND kind=?').bind(u.id,kind).first();if(kind==='document'&&count.n>=5)fail('Можно загрузить до 5 документов');
   const id=crypto.randomUUID(),key=`${u.id}/${id}`;await e.FILES.put(key,buffer,{httpMetadata:{contentType:file.type}});
   const old=kind==='photo'?(await e.DB.prepare("SELECT * FROM files WHERE account_id=? AND kind='photo'").bind(u.id).all()).results:[];
-  await e.DB.batch([e.DB.prepare('INSERT INTO files VALUES(?,?,?,?,?,?)').bind(id,u.id,kind,key,file.type,file.name.slice(0,160)),e.DB.prepare("UPDATE profiles SET status='pending' WHERE id=?").bind(u.id)]);
+  await e.DB.batch([e.DB.prepare('INSERT INTO files VALUES(?,?,?,?,?,?)').bind(id,u.id,kind,key,file.type,file.name.slice(0,160)),e.DB.prepare("UPDATE profiles SET status=CASE WHEN status='rejected' THEN status ELSE 'pending' END WHERE id=?").bind(u.id)]);
   for(const f of old){await e.DB.prepare('DELETE FROM files WHERE id=?').bind(f.id).run();await e.FILES.delete(f.object_key)}
   await enqueue(e,u.id);return json({id,kind,name:file.name},201);
  }
  if(path.startsWith('/api/files/')&&method==='GET'){
   const id=path.slice('/api/files/'.length),file=await e.DB.prepare('SELECT * FROM files WHERE id=?').bind(id).first();if(!file)fail('Файл не найден',404);
   const p=file.kind==='photo'?await e.DB.prepare("SELECT id FROM profiles WHERE photo=? AND status='approved'").bind(id).first():null;
-  if(!p && !await isAdmin(r,e)){const u=await required(r,e);if(u.id!==file.account_id)fail('Нет доступа',403)}
+  if(!p&&!await isAdmin(r,e)){const moderator=await getUser(r,e,'user');if(!(moderator?.role==='moderator'&&moderator.email_verified_at)){const u=await required(r,e);if(u.id!==file.account_id)fail('Нет доступа',403)}}
   const obj=await e.FILES.get(file.object_key);if(!obj)fail('Файл не найден',404);
   return new Response(obj.body,{headers:{'Content-Type':file.mime,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':file.kind==='document'?'attachment':'inline'}});
  }
@@ -109,13 +118,8 @@ async function api(r,e,ctx){
   return json({profiles});
  }
  if(path==='/api/admin/moderate'&&method==='POST'){
-  if(!await isAdmin(r,e))fail('Нет доступа',403);const b=await body(r);if(!['approved','rejected'].includes(b.status))fail('Недопустимый статус');
-  const p=await e.DB.prepare('SELECT * FROM profiles WHERE id=?').bind(b.id).first();if(!p)fail('Анкета не найдена',404);if(b.status==='approved'){
-   const docs=await e.DB.prepare("SELECT COUNT(*) n FROM files WHERE account_id=? AND kind='document'").bind(b.id).first();const photo=await e.DB.prepare("SELECT id FROM files WHERE id=? AND kind='photo'").bind(p.photo).first();if(!docs.n||!photo)fail('Для публикации нужны фото и диплом');
-  }
-  const note=typeof b.note==='string'?b.note.trim().slice(0,1000):'';
-  await e.DB.prepare('UPDATE profiles SET status=?,moderation_note=? WHERE id=?').bind(b.status,note,b.id).run();await audit(e,'profile_'+b.status,b.id);await enqueue(e,b.id);return json({ok:true});
+  if(!await isAdmin(r,e))fail('Нет доступа',403);const b=await body(r);if(!['approved','rejected'].includes(b.status))fail('Недопустимый статус');return json(await moderateApplication(e,{id:b.id,registrationType:'master',action:b.status==='approved'?'approve':'reject',note:b.note}));
  }
  fail('Не найдено',404);
 }
-export default {async scheduled(_event,e,ctx){ctx.waitUntil((async()=>{await e.DB.prepare("DELETE FROM password_recoveries WHERE created_at<?").bind(Date.now()-86400000).run();await e.DB.prepare("DELETE FROM password_recovery_limits WHERE last_sent<?").bind(Date.now()-86400000).run();await e.DB.prepare("DELETE FROM email_verification_tokens WHERE expires<=?").bind(Date.now()).run();await e.DB.prepare("DELETE FROM analytics_events WHERE created_at<datetime('now','-90 days')").run();if(!await e.DB.prepare("SELECT key FROM site_settings WHERE key='google_tokens'").first())return;await e.DB.prepare("UPDATE contact_sync_jobs SET status='error',last_error='Повтор после прерывания' WHERE status='running' AND updated_at<datetime('now','-10 minutes')").run();await processContacts(e,3);await e.DB.prepare("UPDATE sync_jobs SET status='error',last_error='Повтор после прерывания' WHERE status='running' AND updated_at<datetime('now','-10 minutes')").run();await processSync(e,1)})())},async fetch(r,e,ctx){let response;try{response=new URL(r.url).pathname.startsWith('/api/')?await api(r,e,ctx):await e.ASSETS.fetch(r)}catch(err){if(!err.status)console.error('Request failed:',err.message);response=json({error:err.status?err.message:'Сервис временно недоступен. Попробуйте ещё раз.'},err.status||500)}const headers=new Headers(response.headers);headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','strict-origin-when-cross-origin');headers.set('X-Frame-Options','DENY');headers.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");return new Response(response.body,{status:response.status,headers})}};
+export default {async scheduled(_event,e,ctx){ctx.waitUntil((async()=>{await e.DB.prepare("DELETE FROM profile_name_changes WHERE created_at<?").bind(Date.now()-86400000).run();await e.DB.prepare("DELETE FROM profile_name_change_limits WHERE last_sent<?").bind(Date.now()-86400000).run();await e.DB.prepare("DELETE FROM password_recoveries WHERE created_at<?").bind(Date.now()-86400000).run();await e.DB.prepare("DELETE FROM password_recovery_limits WHERE last_sent<?").bind(Date.now()-86400000).run();await e.DB.prepare("DELETE FROM email_verification_tokens WHERE expires<=?").bind(Date.now()).run();await e.DB.prepare("DELETE FROM analytics_events WHERE created_at<datetime('now','-90 days')").run();if(!await e.DB.prepare("SELECT key FROM site_settings WHERE key='google_tokens'").first())return;await e.DB.prepare("UPDATE contact_sync_jobs SET status='error',last_error='Повтор после прерывания' WHERE status='running' AND updated_at<datetime('now','-10 minutes')").run();await processContacts(e,3);await e.DB.prepare("UPDATE sync_jobs SET status='error',last_error='Повтор после прерывания' WHERE status='running' AND updated_at<datetime('now','-10 minutes')").run();await processSync(e,1)})())},async fetch(r,e,ctx){let response;try{response=new URL(r.url).pathname.startsWith('/api/')?await api(r,e,ctx):await handleSeo(r,e)||await e.ASSETS.fetch(r)}catch(err){if(!err.status)console.error('Request failed:',err.message);response=json({error:err.status?err.message:'Сервис временно недоступен. Попробуйте ещё раз.'},err.status||500)}const headers=new Headers(response.headers);if(!new URL(r.url).pathname.startsWith('/api/')&&!response.headers.has('X-Robots-Tag')&&!/\.[a-z0-9]+$/.test(new URL(r.url).pathname))headers.set('X-Robots-Tag','noindex,follow');headers.set('X-Content-Type-Options','nosniff');headers.set('Referrer-Policy','strict-origin-when-cross-origin');headers.set('X-Frame-Options','DENY');headers.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");return new Response(response.body,{status:response.status,headers})}};

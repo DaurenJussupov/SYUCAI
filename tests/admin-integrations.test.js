@@ -32,10 +32,10 @@ test('admin sessions use HttpOnly cookies, reject CSRF and are revoked by secret
  }finally{e.close()}
 });
 test('unfinished drafts and files are visible to admin but private to visitors',async()=>{
- const e=fixture();try{account(e);await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash('f'.repeat(64)),userId,Date.now()+60000).run();const headers={Cookie:'session='+'f'.repeat(64)};
+ const e=fixture();try{account(e);e.sqlite.prepare("UPDATE account_registrations SET display_name='Anara',last_name='Family' WHERE account_id=?").run(userId);await e.DB.prepare('INSERT INTO sessions VALUES(?,?,?)').bind(await hash('f'.repeat(64)),userId,Date.now()+60000).run();const headers={Cookie:'session='+'f'.repeat(64)};
  const save=await request(e,'/profile/draft',{method:'PUT',headers,body:{name:'Anara',city_id:'almaty',bio:'Partial profile',password:'never-store-this'}});assert.equal(save.status,200);
  e.sqlite.prepare('INSERT INTO files VALUES(?,?,?,?,?,?)').run('private-document',userId,'document','private','application/pdf','diploma.pdf');
- const data=await(await request(e,'/admin/applications',{headers:admin})).json();assert.equal(data.applications[0].status,'not_submitted');assert.equal(data.applications[0].draft.name,'Anara');assert.equal(data.applications[0].draft.password,undefined);assert.equal(data.applications[0].files.length,1);
+ const data=await(await request(e,'/admin/applications',{headers:admin})).json();assert.equal(data.applications[0].status,'not_submitted');assert.equal(data.applications[0].draft.name,'Anara Family');assert.equal(data.applications[0].draft.password,undefined);assert.equal(data.applications[0].files.length,1);
  assert.equal((await request(e,'/files/private-document')).status,401);assert.equal((await request(e,'/files/private-document',{headers:admin})).status,200);
  assert.equal((await(await request(e,'/masters?city=almaty')).json()).masters.length,0);
  }finally{e.close()}

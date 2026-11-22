@@ -1,3 +1,4 @@
+import {applicationList,moderateApplication} from './applications.js';
 import {configureContactSheet,queueAllContacts,processContacts} from './google-contacts.js';
 import {handleCommunityAdmin,listReviewQueue,moderateReview} from './community.js';
 import {emailConfigured,emailSender,emailSite} from './email-verification.js';
@@ -20,14 +21,9 @@ export async function handleAdmin(r,e,{body,limit}){
  if(path==='/api/admin/logout'&&method==='POST'){const token=adminCookie(r);if(token)await e.DB.prepare('DELETE FROM admin_sessions WHERE token=?').bind(await hash(token)).run();return json({ok:true},200,{'Set-Cookie':sessionCookie(r,'',0)})}
  if(path==='/api/admin/promotions'&&method==='GET')return json({promotions:await listPromotionRequests(e)});
  if(path==='/api/admin/promotions'&&method==='POST')return json(await moderatePromotion(e,await body(r)));
- if(path==='/api/admin/stats'&&method==='GET'){const days=[7,30,90].includes(Number(url.searchParams.get('days')))?Number(url.searchParams.get('days')):30;return json(await statistics(e,days))}
- if(path==='/api/admin/applications'&&method==='GET'){
-  const offset=Math.max(0,Number(url.searchParams.get('offset'))||0);
-  const rows=(await e.DB.prepare("SELECT a.id,a.email,g.created_at,g.email_verified_at,g.email_verification_sent_at,p.name,p.city_id,p.city_name,p.country_code,p.country,p.bio,p.credentials,p.phone,p.photo,p.updated_at,p.moderation_note,COALESCE(p.status,'not_submitted') status,d.data draft,s.status sync_status,s.last_error sync_error FROM accounts a JOIN account_registrations g ON g.account_id=a.id AND g.registration_type='master' LEFT JOIN profiles p ON p.id=a.id LEFT JOIN profile_drafts d ON d.account_id=a.id LEFT JOIN sync_jobs s ON s.account_id=a.id ORDER BY CASE WHEN p.status='pending' THEN 0 WHEN p.id IS NULL THEN 1 ELSE 2 END,COALESCE(p.updated_at,g.created_at) DESC LIMIT 50 OFFSET ?").bind(offset).all()).results;
-  const files=rows.length?(await e.DB.prepare(`SELECT id,account_id,kind,mime,name FROM files WHERE account_id IN (${rows.map(()=>'?').join(',')})`).bind(...rows.map(r=>r.id)).all()).results:[];
-  for(const row of rows){row.files=files.filter(f=>f.account_id===row.id);if(row.draft){try{row.draft=JSON.parse(row.draft)}catch{row.draft=null}}}
-  const total=await e.DB.prepare("SELECT COUNT(*) n FROM accounts a JOIN account_registrations g ON g.account_id=a.id AND g.registration_type='master' LEFT JOIN profiles p ON p.id=a.id LEFT JOIN profile_drafts d ON d.account_id=a.id").first();return json({applications:rows,total:total.n,offset});
- }
+ if(path==='/api/admin/stats'&&method==='GET'){const days=url.searchParams.get('days')==='today'?'today':[7,30,90].includes(Number(url.searchParams.get('days')))?Number(url.searchParams.get('days')):30;return json(await statistics(e,days))}
+ if(path==='/api/admin/applications'&&method==='GET')return json(await applicationList(e,url));
+ if(path==='/api/admin/applications'&&method==='POST')return json(await moderateApplication(e,await body(r)));
  if(path==='/api/admin/reviews'&&method==='GET')return json({reviews:await listReviewQueue(e)});
  if(path==='/api/admin/reviews'&&method==='POST')return json(await moderateReview(e,await body(r),{id:'admin',admin:true}));
  if(path==='/api/admin/settings'&&method==='GET')return json({email:{configured:emailConfigured(e),from:emailSender(e),siteUrl:emailSite(e)},google:{configured:googleConfigured(e),connected:!!await getSetting(e,'google_tokens'),folder:await getSetting(e,'google_folder_id'),sheet:await getSetting(e,'google_sheet_id'),contactsSheet:await getSetting(e,'google_contacts_sheet_id')},measurementId:await getSetting(e,'ga_measurement_id')||e.GA_MEASUREMENT_ID||'',propertyId:await getSetting(e,'ga_property_id'),redirectUri:new URL('/api/admin/google/callback',r.url).href,contactSync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM contact_sync_jobs GROUP BY status').all()).results,contactErrors:(await e.DB.prepare("SELECT last_error FROM contact_sync_jobs WHERE status='error' ORDER BY updated_at DESC LIMIT 3").all()).results,sync:(await e.DB.prepare('SELECT status,COUNT(*) count FROM sync_jobs GROUP BY status').all()).results});

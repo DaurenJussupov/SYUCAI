@@ -28,7 +28,7 @@ test('a missing or failing provider never claims a message was sent and never pr
  const e=fixture();try{
  const missing={...e,RESEND_API_KEY:undefined};assert.deepEqual(await sendVerification(missing,user),{sent:false,configured:false});assert.equal(e.sqlite.prepare('SELECT COUNT(*) n FROM email_verification_tokens').get().n,0);
  const original=console.error;console.error=()=>{};try{const failed=await sendVerification(e,user,{request:async()=>response({error:'failed'},403)});assert.equal(failed.sent,false);assert.equal(e.sqlite.prepare('SELECT email_verification_sent_at FROM account_registrations').get().email_verification_sent_at,null)}finally{console.error=original}
- const registered=await request(missing,'/auth/register',{method:'POST',body:{email:'another@example.test',password:'TestPassword123!',passwordConfirm:'TestPassword123!'}});assert.equal(registered.status,200);assert.equal((await registered.json()).verification.sent,false);
+ const registered=await request(missing,'/auth/register',{method:'POST',body:{name:'New',lastName:'Family',email:'another@example.test',password:'TestPassword123!',passwordConfirm:'TestPassword123!'}});assert.equal(registered.status,200);assert.equal((await registered.json()).verification.sent,false);
  }finally{e.close()}
 });
 test('resend requires a session, verification rejects cross-origin calls and confirmation never logs a user in',async()=>{

@@ -18,7 +18,7 @@ const create=async(e,days=3)=>request(e,'/promotions',{method:'POST',headers,bod
 const moderate=async(e,id,action,note='')=>request(e,'/admin/promotions',{method:'POST',headers:admin,body:{id,action,note}});
 test('registration requires matching confirmation, stores no confirmation and login keeps its existing contract',async()=>{
  const db=database(),e={...db,ASSETS:{fetch:async()=>new Response('assets')}};try{
- const data={email:'new-master@example.test',password:'TestPassword123!'};
+ const data={name:'Master',lastName:'Family',email:'new-master@example.test',password:'TestPassword123!'};
  assert.equal((await request(e,'/auth/register',{method:'POST',body:data})).status,400);
  assert.equal((await request(e,'/auth/register',{method:'POST',body:{...data,passwordConfirm:'DifferentPassword!'}})).status,400);assert.equal(e.sqlite.prepare('SELECT count(*) n FROM accounts').get().n,0);
  const response=await request(e,'/auth/register',{method:'POST',body:{...data,passwordConfirm:data.password}});assert.equal(response.status,200);

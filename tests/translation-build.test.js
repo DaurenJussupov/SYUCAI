@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {buildTranslations,remoteTranslationsEnabled} from '../scripts/build-translations.js';
+import {buildTranslations,remoteTranslationsEnabled,translateBatch} from '../scripts/build-translations.js';
 const logger={log(){},error(){}};
 const source={sourceHash:'current',strings:['Введите дату рождения','Рассчитать','Новый текст']};
 const languageList=[{code:'ru'},{code:'en',target:'en'}];
@@ -47,3 +47,5 @@ test('Cloudflare Workers Builds generates catalogs even when authentication is n
  assert.equal(remoteTranslationsEnabled({WORKERS_CI:'true',SYUCAI_SKIP_REMOTE_SETUP:'1'}),false);
  assert.equal(remoteTranslationsEnabled({}),false);
 });
+
+test('valid translations survive a provider rewriting batch markers through validated individual-message fallback',async()=>{const calls=[],output=await translateBatch(['Новый текст {0}','Рассчитать'],'tg',{pause:async()=>{},request:async url=>{const q=new URL(url).searchParams.get('q');calls.push(q);return response({sentences:[{trans:q.includes('[[SYUCAI_')?'rewritten markers':q==='Новый текст {0}'?'New text {0}':'Calculate'}]})}});assert.deepEqual(output,{'Новый текст {0}':'New text {0}','Рассчитать':'Calculate'});assert.equal(calls.length,3);await assert.rejects(translateBatch(['Новый текст {0}'],'tg',{pause:async()=>{},request:async url=>response({sentences:[{trans:new URL(url).searchParams.get('q').includes('[[SYUCAI_')?'rewritten':'Missing placeholder'}]})}),/markers/)});

@@ -1,3 +1,4 @@
+import {basePath} from '../shared/site-routing.js';
 // Only explicitly listed product events are sent. Never pass form values here.
 import {currentLanguage,translateDocument} from './i18n/runtime.js';
 const consentKey='syucai-analytics-consent';
@@ -6,7 +7,7 @@ const allowed=new Set(['page_view','calculation','calendar_open','calendar_day',
 const read=(storage,key)=>{try{return storage.getItem(key)}catch{return null}};
 const write=(storage,key,value)=>{try{storage.setItem(key,value)}catch{}};
 const permitted=()=>read(localStorage,consentKey)==='yes'&&!['/admin','/moderator','/verify-email'].includes(location.pathname);
-const safePath=path=>/^\/masters\/[a-f0-9-]{36}$/.test(path)?'/masters/:id':/^\/blog\/news-[a-f0-9-]{36}$/.test(path)?'/blog/:slug':['/','/results','/calendar','/about','/masters','/account','/cabinet','/blog','/privacy'].includes(path)?path:'';
+const safePath=value=>{const path=basePath(value);return /^\/masters\/[a-f0-9-]{36}$/.test(path)?'/masters/:id':/^\/blog\/[a-z0-9-]+$/.test(path)?'/blog/:slug':['/','/results','/calendar','/about','/masters','/account','/cabinet','/blog','/privacy','/guide'].includes(path)?path:''};
 const label=value=>String(value||'').replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,60);
 function attribution(){
  let value=read(sessionStorage,'syucai-attribution');
@@ -22,8 +23,8 @@ function enableGoogle(){
  const script=document.createElement('script');script.async=true;script.src='https://www.googletagmanager.com/gtag/js?id='+id;document.head.append(script);
 }
 export function track(event,options={}){
- if(!initialized||!permitted()||!allowed.has(event))return;
- const path=safePath(location.pathname);if(!path)return;
+ if(!initialized||read(localStorage,consentKey)!=='yes'||event!=='engagement'&&!permitted()||!allowed.has(event))return;
+ const path=options.path||safePath(location.pathname);if(!path||event!=='engagement'&&!permitted())return;
  session=read(sessionStorage,'syucai-analytics-session')||crypto.randomUUID();write(sessionStorage,'syucai-analytics-session',session);
  const payload={event,path,session,consent:true,...attribution(),language:currentLanguage()};
  if(/^[a-f0-9-]{36}$/.test(options.master_id||''))payload.master_id=options.master_id;
@@ -31,7 +32,7 @@ export function track(event,options={}){
  fetch('/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),keepalive:true}).catch(()=>{});
  enableGoogle();if(gaId&&window.gtag)window.gtag('event',event,{page_location:location.origin+path,page_referrer:payload.referrer,page_title:'SYUCAI',...(payload.master_id?{master_id:payload.master_id}:{}),...(event==='engagement'?{engagement_time_msec:payload.duration*1000}:{})});
 }
-function engagement(){if(started){const duration=(performance.now()-started)/1000;started=0;if(duration>=1)track('engagement',{duration})}}
+function engagement(){if(started){const duration=(performance.now()-started)/1000;started=0;if(duration>=1)track('engagement',{duration,path:page})}}
 export function analyticsPage(){
  engagement();page=safePath(location.pathname);started=permitted()&&document.visibilityState==='visible'?performance.now():0;
  showConsent(false);if(page)track('page_view');

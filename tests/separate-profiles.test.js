@@ -7,7 +7,7 @@ import {sendVerification,verifyEmail} from '../worker/email-verification.js';
 import {hash} from '../worker/admin-auth.js';
 const origin='https://syucai.test',email='same@example.test',passwords={master:'MasterPassword123!',user:'UserPassword456!'};
 const request=(e,path,{type='master',method='GET',body,cookies=''}={})=>worker.fetch(new Request(origin+'/api'+path,{method,headers:{'X-Account-Type':type,...(cookies?{Cookie:cookies}:{}),...(method==='GET'?{}:{Origin:origin,'Content-Type':'application/json'})},...(body?{body:JSON.stringify(body)}:{})}),e);
-const register=(e,type)=>request(e,'/auth/register',{type,method:'POST',body:{registrationType:type,email:email.toUpperCase(),name:type==='master'?'Master Name':'User Name',password:passwords[type],passwordConfirm:passwords[type],newsletter:type==='user'}});
+const register=(e,type)=>request(e,'/auth/register',{type,method:'POST',body:{lastName:'Family',registrationType:type,email:email.toUpperCase(),name:type==='master'?'Master Name':'User Name',password:passwords[type],passwordConfirm:passwords[type],newsletter:type==='user'}});
 const cookie=response=>response.headers.getSetCookie().map(v=>v.split(';')[0]).filter(v=>!v.endsWith('=')).join('; ');
 for(const order of [['master','user'],['user','master']])test('same email registers once per section, with independent credentials and sessions: '+order.join(' first, then '),async()=>{
  const e={...database(),ASSETS:{fetch:async()=>new Response('assets')}};try{
