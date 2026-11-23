@@ -1,3 +1,5 @@
+import {handleSupport} from './support.js';
+import {handleMasterDashboard} from './master-dashboard.js';
 import {handleSeo} from './seo.js';
 import {moderateApplication,handleMemberResubmission} from './applications.js';
 import {handleProfileIdentity} from './profile-identity.js';
@@ -33,6 +35,8 @@ async function api(r,e,ctx){
  if(!['GET','HEAD'].includes(method)){
   const origin=r.headers.get('origin');if(!origin||origin!==url.origin)fail('Запрос с другого сайта запрещён',403);
  }
+ const support=await handleSupport(r,e,{body,limit});if(support)return support;
+ const dashboard=await handleMasterDashboard(r,e);if(dashboard)return dashboard;
  const admin=await handleAdmin(r,e,{body,limit});if(admin)return admin;
  const blogCommunity=await handleBlogCommunity(r,e,{body,limit});if(blogCommunity)return blogCommunity;
  const resubmission=await handleMemberResubmission(r,e,{required});if(resubmission)return resubmission;
