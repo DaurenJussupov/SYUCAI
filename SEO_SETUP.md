@@ -1,6 +1,6 @@
 # Search and AI discovery
 
-The Worker sends public page content, titles, descriptions, canonical URLs and JSON-LD in the initial HTML, identically to browsers and crawlers. Public language versions have independent paths (`/en/`, `/de/about`, `/mn/guide`); Russian remains unprefixed. Only complete language catalogs appear in hreflang and the sitemap. Partial catalogs remain usable in the interface with noindex until translation is complete.
+The Worker sends public page content, titles, descriptions, canonical URLs and JSON-LD in the initial HTML, identically to browsers and crawlers. Public language versions have independent paths (`/en/`, `/de/about`, `/mn/guide`); Russian remains unprefixed. Translation coverage is checked per public page. A fully translated guide/home/about page stays indexable even if unrelated private registration text is awaiting translation. Pages with missing managed public copy remain noindex and are omitted from the sitemap/hreflang for that language until complete.
 
 - Sitemap: https://syucai.me/sitemap.xml — public pages, published posts and approved masters only; archived masters and drafts disappear automatically.
 - Robots: https://syucai.me/robots.txt — private API/account/admin paths excluded; public image endpoints allowed. Authentication remains the actual protection for private files.

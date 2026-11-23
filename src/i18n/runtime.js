@@ -1,4 +1,4 @@
-import {splitLocale} from '../../shared/site-routing.js';
+import {splitLocale,seoLanguageReady,readyLanguages} from '../../shared/site-routing.js';
 import {catalogState} from '../../shared/translation-catalog.js';
 import source from './source.json';
 import {languages,languageByCode,languageName,sortedLanguages} from './languages.js';
@@ -15,7 +15,8 @@ const patterns=source.strings.filter(s=>/\{\d+\}/.test(s)).map(message=>{
 }).sort((a,b)=>b.message.length-a.message.length);
 export const currentLanguage=()=>locale;
 export const languageReady=code=>code==='ru'||manifest?.languages?.[code]?.status==='ready'||Object.keys(catalogs.get(code)||{}).length===source.strings.length;
-export const readyLocaleCodes=()=>languages.filter(l=>languageReady(l.code)).map(l=>l.code);
+export const seoReady=(code,path)=>manifest?seoLanguageReady(manifest,code,path):languageReady(code);
+export const readyLocaleCodes=(path='/')=>manifest?readyLanguages(manifest,path).map(l=>l.code):languages.filter(l=>languageReady(l.code)).map(l=>l.code);
 export function translateText(value,language=locale) {
  const raw=String(value??'');if(language==='ru')return raw;
  const dictionary=catalogs.get(language)||{},key=raw.trim();
@@ -105,7 +106,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('#language-control'))
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('#language-panel')?.hidden===false)closeLanguages(true)});
 export async function initializeTranslations(){
  new MutationObserver(records=>{if(records.some(r=>!r.target.parentElement?.closest('script,style')))schedule()}).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});
- try{const r=await fetch(`/i18n/manifest.json?v=${source.sourceHash}`,{cache:'no-cache'});if(r.ok){const data=await r.json();if(data.sourceHash===source.sourceHash)manifest=data}}catch{}
+ try{const r=await fetch(`/i18n/manifest.json?v=${source.sourceHash}&seo=pages`,{cache:'no-cache'});if(r.ok){const data=await r.json();if(data.sourceHash===source.sourceHash)manifest=data}}catch{}
  let saved;try{saved=localStorage.getItem('syucai.language')}catch{}
  const explicit=splitLocale(location.pathname).locale;if(explicit&&explicit!=='ru')await setLanguage(explicit);else if(!explicit&&saved&&languageByCode(saved)&&saved!=='ru')await setLanguage(saved);else schedule()
 }

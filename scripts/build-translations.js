@@ -1,3 +1,4 @@
+import {seoTranslationCoverage} from './seo-translation-coverage.js';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -94,7 +95,7 @@ export async function buildTranslations({root=process.cwd(),request=fetch,pause=
  for(const language of languageList.filter(l=>l.code!=='ru')){
   let raw;try{raw=await readFile(resolve(root,`translations/${language.code}.json`),'utf8')}catch(e){if(e.code!=='ENOENT')throw e}
   if(raw){const catalog=JSON.parse(raw);if(!validCatalog(catalog,source,language.code))throw Error(`Reviewed catalog ${language.code} is incomplete or stale. Update it before publishing.`);
-   await writeFile(`${output}/${language.code}.json`,JSON.stringify(catalog));manifest.languages[language.code]={status:'ready',reviewed:true,translated:source.strings.length,total:source.strings.length};overridden.add(language.code);continue;
+   await writeFile(`${output}/${language.code}.json`,JSON.stringify(catalog));manifest.languages[language.code]={status:'ready',reviewed:true,translated:source.strings.length,total:source.strings.length,seoReady:seoTranslationCoverage(source,catalog.translations)};overridden.add(language.code);continue;
   }
   // Optional checked-in machine cache, separate from strictly reviewed overrides.
   try{const cache=JSON.parse(await readFile(resolve(root,`translations/cache/${language.code}.json`),'utf8'));seeds.set(language.code,catalogTranslations(cache,source,language.code))}catch(error){if(error.code!=='ENOENT')throw error}
@@ -103,7 +104,7 @@ export async function buildTranslations({root=process.cwd(),request=fetch,pause=
   const state=catalogState({locale:language.code,translations},source,language.code);
   const catalog={locale:language.code,sourceHash:source.sourceHash,...state};
   await writeFile(`${output}/${language.code}.json`,JSON.stringify(catalog));
-  manifest.languages[language.code]={status:state.status,translated:state.translated,total:state.total};return state;
+  manifest.languages[language.code]={status:state.status,translated:state.translated,total:state.total,seoReady:seoTranslationCoverage(source,state.translations)};return state;
  }
  if(!remoteEnabled){
   for(const language of languageList.filter(l=>l.code!=='ru'&&!overridden.has(l.code)))if(seeds.has(language.code))await save(language,seeds.get(language.code));
@@ -112,6 +113,7 @@ export async function buildTranslations({root=process.cwd(),request=fetch,pause=
  }
  const queue=languageList.filter(l=>l.code!=='ru'&&!overridden.has(l.code));
  async function worker(){for(;;){const language=queue.shift();if(!language)return;let translations={};
+  const cached=seeds.get(language.code);if(cached&&source.strings.every(key=>cached[key])){await save(language,cached);logger.log(`Translation ready from cache: ${language.code} (${source.strings.length}/${source.strings.length})`);continue}
   try{const response=await request(previous+language.code+'.json',{signal:AbortSignal.timeout(10000)});if(response.ok)translations=catalogTranslations(await response.json(),source,language.code)}catch{}
   Object.assign(translations,seeds.get(language.code)||{});
   const missing=source.strings.filter(key=>!translations[key]);
