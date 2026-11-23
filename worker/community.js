@@ -16,7 +16,7 @@ export async function moderateReview(e,data,actor){
  await audit(e,'review_'+status,id);return {ok:true};
 }
 async function saveReview(r,e,owner,masterId,existing,limit){
- if(masterId===owner.id)fail('Нельзя оставить отзыв о себе');
+ if(masterId===owner.id||await e.DB.prepare("SELECT account_id FROM account_registrations WHERE account_id=? AND registration_type='master' AND email=? COLLATE NOCASE").bind(masterId,owner.email).first())fail('Нельзя оставить отзыв о себе');
  if(!owner.email_verified_at)fail('Подтвердите email, чтобы оставить отзыв',403);
  await limit(r,e,'review',10);
  if(!r.headers.get('content-type')?.includes('multipart/form-data'))fail('Прикрепите документ, подтверждающий консультацию');
@@ -86,11 +86,11 @@ export async function handleCommunityAdmin(r,e,{body}){
  const url=new URL(r.url),path=url.pathname;
  if(!['/api/admin/moderators','/api/admin/subscribers'].includes(path))return null;
  if(!await isAdmin(r,e))fail('Войдите в админ-панель',401);
- if(path==='/api/admin/subscribers'&&r.method==='GET')return json({subscribers:(await e.DB.prepare('SELECT a.id,g.display_name,a.email,g.newsletter_consent_at,g.email_verified_at FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.registration_type=\'user\' AND g.newsletter_opt_in=1 AND g.email_verified_at IS NOT NULL ORDER BY g.newsletter_consent_at DESC LIMIT 10000').all()).results});
- if(path==='/api/admin/moderators'&&r.method==='GET')return json({accounts:(await e.DB.prepare("SELECT a.id,g.display_name,a.email,g.role,g.email_verified_at FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.registration_type='user' AND (g.role='moderator' OR lower(a.email)=?) ORDER BY a.email LIMIT 200").bind((url.searchParams.get('email')||'').trim().toLowerCase()).all()).results});
+ if(path==='/api/admin/subscribers'&&r.method==='GET')return json({subscribers:(await e.DB.prepare('SELECT a.id,g.display_name,g.email,g.newsletter_consent_at,g.email_verified_at FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.registration_type=\'user\' AND g.deleted_at IS NULL AND g.newsletter_opt_in=1 AND g.email_verified_at IS NOT NULL ORDER BY g.newsletter_consent_at DESC LIMIT 10000').all()).results});
+ if(path==='/api/admin/moderators'&&r.method==='GET')return json({accounts:(await e.DB.prepare("SELECT a.id,g.display_name,g.email,g.role,g.email_verified_at FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.registration_type='user' AND g.deleted_at IS NULL AND (g.role='moderator' OR lower(g.email)=?) ORDER BY g.email LIMIT 200").bind((url.searchParams.get('email')||'').trim().toLowerCase()).all()).results});
  if(path==='/api/admin/moderators'&&r.method==='POST'){
   const data=await body(r);if(!['user','moderator'].includes(data?.role)||typeof data.id!=='string')fail('Проверьте роль пользователя');
-  const account=await e.DB.prepare('UPDATE account_registrations SET role=? WHERE account_id=? AND registration_type=\'user\' RETURNING account_id AS id').bind(data.role,data.id).first();if(!account)fail('Пользователь не найден',404);await audit(e,'role_'+data.role,data.id);return json({ok:true});
+  const account=await e.DB.prepare('UPDATE account_registrations SET role=? WHERE account_id=? AND registration_type=\'user\' AND deleted_at IS NULL RETURNING account_id AS id').bind(data.role,data.id).first();if(!account)fail('Пользователь не найден',404);await audit(e,'role_'+data.role,data.id);return json({ok:true});
  }
  return json({error:'Метод не поддерживается'},405);
 }

@@ -57,7 +57,7 @@ export async function createResources(e){
 export async function syncAccount(e,id){
  const token=await googleToken(e),request=(url,options)=>googleFetch(e,url,options,token);
  const sheet=await getSetting(e,'google_sheet_id'),folder=await getSetting(e,'google_folder_id');if(!sheet||!folder)throw Error('Создайте таблицу и папку Google');
- const p=await e.DB.prepare('SELECT a.id,a.email,p.name,p.city_id,p.city_name,p.country_code,p.country,p.phone,p.credentials,p.bio,p.status,p.updated_at,p.moderation_note FROM accounts a LEFT JOIN profiles p ON p.id=a.id WHERE a.id=?').bind(id).first();if(!p)throw Error('Аккаунт не найден');
+ const p=await e.DB.prepare('SELECT a.id,g.email,p.name,p.city_id,p.city_name,p.country_code,p.country,p.phone,p.credentials,p.bio,CASE WHEN g.deleted_at IS NOT NULL THEN \'deleted\' ELSE p.status END status,p.updated_at,p.moderation_note FROM accounts a LEFT JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=\'master\' LEFT JOIN profiles p ON p.id=a.id WHERE a.id=?').bind(id).first();if(!p)throw Error('Аккаунт не найден');
  if(!p.name){const draft=await e.DB.prepare('SELECT data FROM profile_drafts WHERE account_id=?').bind(id).first();if(draft){try{Object.assign(p,JSON.parse(draft.data))}catch{}}}
  const files=(await e.DB.prepare('SELECT f.*,g.drive_id,g.uploaded FROM files f LEFT JOIN google_file_links g ON g.file_id=f.id WHERE f.account_id=?').bind(id).all()).results;const links=[];
  for(const f of files){let driveId=f.drive_id,uploaded=!!f.uploaded;

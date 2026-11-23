@@ -23,7 +23,7 @@ export function mountProfileIdentity({user,api,esc,onSaved}){
 }
 
 export function applicationNotice(user,esc){
- if(user.deleted_at)return '<section class="membership-notice"><h2>Анкета удалена из рабочих списков</h2><p>По вопросам восстановления обратитесь к администратору сайта.</p></section>';
+ if(user.deleted_at)return '<section class="membership-notice"><h2>Профиль удалён</h2><p>Можно зарегистрироваться заново в этом разделе с тем же email.</p></section>';
  if(user.archived_at)return '<section class="membership-notice"><h2>Анкета в архиве</h2><p>Восстановление доступно администратору и модератору.</p></section>';
  if(user.application_status==='rejected')return `<section class="membership-notice"><h2>Данные на доработке</h2><p data-i18n-skip>${esc(user.application_note)}</p><p>Исправьте данные и отправьте их на повторное рассмотрение.</p><button class="button secondary" type="button" id="resubmit-member">Отправить на повторное рассмотрение</button><p class="error" id="resubmit-member-error" role="alert"></p></section>`;
  return '';

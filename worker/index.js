@@ -113,7 +113,7 @@ async function api(r,e,ctx){
  }
  if(path==='/api/admin/profiles'&&method==='GET'){
   if(!await isAdmin(r,e))fail('Нет доступа',403);
-  const profiles=(await e.DB.prepare('SELECT p.*,a.email FROM profiles p JOIN accounts a ON a.id=p.id ORDER BY p.updated_at DESC LIMIT 200').all()).results;
+  const profiles=(await e.DB.prepare('SELECT p.*,g.email FROM profiles p JOIN account_registrations g ON g.account_id=p.id AND g.registration_type=\'master\' ORDER BY p.updated_at DESC LIMIT 200').all()).results;
   for(const p of profiles)p.files=(await e.DB.prepare('SELECT id,kind,name FROM files WHERE account_id=?').bind(p.id).all()).results;
   return json({profiles});
  }

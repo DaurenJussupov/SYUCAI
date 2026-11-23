@@ -7,7 +7,8 @@ export async function publicBlog(e,slug){
  const post=await e.DB.prepare(summary+" WHERE b.slug=? AND b.status='published'").bind(slug).first();if(!post)fail('Новость не найдена',404);delete post.author_id;delete post.status;return post;
 }
 export async function editorBlog(e,actor){return {posts:(await e.DB.prepare(summary+' WHERE ?=1 OR b.author_id=? ORDER BY b.updated_at DESC LIMIT 100').bind(actor.admin?1:0,actor.id).all()).results}}
-const activeBlock=(e,id)=>e.DB.prepare("SELECT * FROM comment_blocks WHERE account_id=? AND (indefinite=1 OR blocked_until>CURRENT_TIMESTAMP)").bind(id).first();
+const sameEmailUsers="SELECT peer.account_id FROM account_registrations subject JOIN account_registrations peer ON peer.email=subject.email COLLATE NOCASE AND peer.registration_type='user' WHERE subject.account_id=? AND subject.registration_type='user'";
+const activeBlock=(e,id)=>e.DB.prepare(`SELECT * FROM comment_blocks WHERE account_id IN(${sameEmailUsers}) AND (indefinite=1 OR blocked_until>CURRENT_TIMESTAMP) ORDER BY indefinite DESC,blocked_until DESC LIMIT 1`).bind(id).first();
 const dateSql=date=>date.toISOString().slice(0,19).replace('T',' ');
 export function commentBlockEnd(months,days,now=new Date()){
  if(!Number.isInteger(months)||months<0||months>12||!Number.isSafeInteger(days)||days<1)fail('Укажите от 0 до 12 месяцев и не меньше одного дня');
@@ -33,7 +34,7 @@ export async function handleBlogCommunity(r,e,{body,limit}){
   }
   if(await activeBlock(e,user.id))fail('Возможность комментировать ограничена модератором',403);
   await limit(r,e,'blog-comment',30);const data=await body(r),text=typeof data?.text==='string'?data.text.trim():'';if(!text||text.length>2000)fail('Введите комментарий до 2000 символов');if(!user.display_name?.trim())fail('Укажите имя в личном кабинете');
-  const id=crypto.randomUUID();await e.DB.prepare("INSERT INTO blog_comments(id,post_id,account_id,author,text) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM comment_blocks WHERE account_id=? AND (indefinite=1 OR blocked_until>CURRENT_TIMESTAMP)) RETURNING id").bind(id,post.id,user.id,user.display_name,text,user.id).first().then(row=>{if(!row)fail('Возможность комментировать ограничена модератором',403)});return json({ok:true,id},201);
+  const id=crypto.randomUUID();await e.DB.prepare(`INSERT INTO blog_comments(id,post_id,account_id,author,text) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM comment_blocks WHERE account_id IN(${sameEmailUsers}) AND (indefinite=1 OR blocked_until>CURRENT_TIMESTAMP)) RETURNING id`).bind(id,post.id,user.id,user.display_name,text,user.id).first().then(row=>{if(!row)fail('Возможность комментировать ограничена модератором',403)});return json({ok:true,id},201);
  }
  const image=path.match(/^\/api\/blog-images\/([a-f0-9-]{36})$/);
  if(image&&method==='GET'){
@@ -51,10 +52,10 @@ export async function handleBlogCommunity(r,e,{body,limit}){
  if(path==='/api/moderator/comment-blocks'&&method==='GET')return json({blocks:(await e.DB.prepare("SELECT c.*,g.display_name FROM comment_blocks c JOIN account_registrations g ON g.account_id=c.account_id AND g.registration_type='user' WHERE c.indefinite=1 OR c.blocked_until>CURRENT_TIMESTAMP ORDER BY c.created_at DESC LIMIT 500").all()).results});
  if(path==='/api/moderator/comment-blocks'&&method==='POST'){
   const data=await body(r),target=await e.DB.prepare("SELECT account_id,role FROM account_registrations WHERE account_id=? AND registration_type='user'").bind(typeof data?.account_id==='string'?data.account_id:'').first();if(!target)fail('Пользователь не найден',404);if(!actor.admin&&target.role==='moderator')fail('Блокировка модераторов доступна администратору',403);
-  if(data.action==='unblock'){await e.DB.prepare('DELETE FROM comment_blocks WHERE account_id=?').bind(target.account_id).run();await audit(e,'comments_unblocked',target.account_id);return json({ok:true})}
+  if(data.action==='unblock'){await e.DB.prepare(`DELETE FROM comment_blocks WHERE account_id IN(${sameEmailUsers})`).bind(target.account_id).run();await audit(e,'comments_unblocked',target.account_id);return json({ok:true})}
   if(data.action!=='block'||typeof data.indefinite!=='boolean')fail('Проверьте параметры блокировки');
   const until=data.indefinite?null:commentBlockEnd(data.months,data.days),reason=typeof data.reason==='string'?data.reason.trim().slice(0,500):'';
-  await e.DB.prepare('INSERT INTO comment_blocks(account_id,indefinite,months,days,blocked_until,reason,moderated_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET indefinite=excluded.indefinite,months=excluded.months,days=excluded.days,blocked_until=excluded.blocked_until,reason=excluded.reason,moderated_by=excluded.moderated_by,created_at=CURRENT_TIMESTAMP').bind(target.account_id,data.indefinite?1:0,data.indefinite?0:data.months,data.indefinite?1:data.days,until,reason,actor.id).run();await audit(e,'comments_blocked',target.account_id);return json({ok:true,until,indefinite:data.indefinite});
+  await e.DB.batch([e.DB.prepare(`DELETE FROM comment_blocks WHERE account_id IN(${sameEmailUsers})`).bind(target.account_id),e.DB.prepare('INSERT INTO comment_blocks(account_id,indefinite,months,days,blocked_until,reason,moderated_by) VALUES(?,?,?,?,?,?,?)').bind(target.account_id,data.indefinite?1:0,data.indefinite?0:data.months,data.indefinite?1:data.days,until,reason,actor.id)]);await audit(e,'comments_blocked',target.account_id);return json({ok:true,until,indefinite:data.indefinite});
  }
  const upload=path.match(/^\/api\/moderator\/posts\/([a-f0-9-]{36})\/image$/);
  if(upload){

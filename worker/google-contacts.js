@@ -21,11 +21,11 @@ async function prepare({id,request}){
 }
 export async function configureContactSheet(e,value){const ctx=await context(e,value);await prepare(ctx);await setSetting(e,'google_contacts_sheet_id',ctx.id);await queueAllContacts(e);return {sheet:ctx.id}}
 export async function syncContact(e,id,ctx,tabs){
- const rows=(await e.DB.prepare('SELECT a.id,a.email,g.registration_type,g.display_name,g.last_name,g.email_verified_at,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,p.name profile_name,p.city_name,p.country FROM accounts a JOIN account_registrations g ON g.account_id=a.id LEFT JOIN profiles p ON p.id=a.id WHERE a.id=?').bind(id).all()).results;
+ const rows=(await e.DB.prepare('SELECT a.id,g.email,g.deleted_at,g.registration_type,g.display_name,g.last_name,g.email_verified_at,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,p.name profile_name,p.city_name,p.country FROM accounts a JOIN account_registrations g ON g.account_id=a.id LEFT JOIN profiles p ON p.id=a.id WHERE a.id=?').bind(id).all()).results;
  for(const row of rows){
   const tab=tabs[row.registration_type],column=await ctx.request(api(ctx.id,'/values/'+range(tab,'A:A'))),found=(column.values||[]).findIndex(v=>v[0]===id),name=row.display_name||(row.registration_type==='master'?row.profile_name:'')||'';
-  const eligible=!!row.email_verified_at&&row.newsletter_opt_in===1;
-  const values=[[id,name,row.last_name,row.email,row.email_verified_at?'Да':'Нет',row.newsletter_opt_in?'Да':'Нет',eligible?'Да':'Нет',row.newsletter_consent_at,row.created_at,row.registration_type==='master'?row.city_name:'',row.registration_type==='master'?row.country:'',new Date().toISOString()].map(sheetSafe)];
+  const eligible=!row.deleted_at&&!!row.email_verified_at&&row.newsletter_opt_in===1;
+  const values=[[id,name,row.last_name,row.email,row.email_verified_at?'Да':'Нет',!row.deleted_at&&row.newsletter_opt_in?'Да':'Нет',eligible?'Да':'Нет',row.newsletter_consent_at,row.created_at,row.registration_type==='master'?row.city_name:'',row.registration_type==='master'?row.country:'',new Date().toISOString()].map(sheetSafe)];
   const url=api(ctx.id,'/values/'+range(tab,found>=1?`A${found+1}:L${found+1}`:'A:L')+(found>=1?'?valueInputOption=RAW':':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS'));
   await ctx.request(url,{method:found>=1?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({values})});
  }

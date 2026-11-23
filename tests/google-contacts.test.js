@@ -1,3 +1,5 @@
+import {moderateApplication} from '../worker/applications.js';
+import {createRegistration} from '../worker/accounts.js';
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {database} from './helpers/database.js';import {seal} from '../worker/google.js';
 import {setSetting} from '../worker/admin-auth.js';
@@ -16,3 +18,5 @@ test('contact sheets separate both profiles, preserve names, gate mailing by con
 test('unexpected existing sheet headers are never overwritten; failed exports stay retryable without losing account data',async()=>{
  const e=await fixture(),previous=globalThis.fetch;globalThis.fetch=e.request;try{e.sheets.Пользователи=[['Existing private data']];await assert.rejects(()=>configureContactSheet(e,sheet),/не перезаписано/);await queueContact(e,'same');const result=await processContacts(e);assert.equal(result.succeeded,0);assert.deepEqual(e.sheets.Пользователи,[['Existing private data']]);assert.equal(e.sqlite.prepare('SELECT count(*) n FROM accounts').get().n,1);assert.equal(e.sqlite.prepare('SELECT status FROM contact_sync_jobs').get().status,'error');assert.equal(e.writes.length,0)}finally{globalThis.fetch=previous;e.close()}
 });
+
+test('retired contacts become ineligible and a new registration exports its real email without inheriting consent',async()=>{const e=await fixture(),previous=globalThis.fetch;globalThis.fetch=e.request;try{await configureContactSheet(e,sheet);await processContacts(e,3);await moderateApplication(e,{id:'same',registrationType:'user',action:'reject'});await moderateApplication(e,{id:'same',registrationType:'user',action:'delete'});const fresh=await createRegistration(e,{email:'same@example.test',type:'user',password:'new-hash',salt:'new-salt',displayName:'Fresh',lastName:'Person',subscribed:0});await queueContact(e,fresh.id);await processContacts(e,3);const old=e.sheets.Пользователи.find(row=>row[0]==='same'),current=e.sheets.Пользователи.find(row=>row[0]===fresh.id);assert.equal(old[6],'Нет');assert.equal(current[1],'Fresh');assert.equal(current[3],'same@example.test');assert.equal(current[5],'Нет');assert.equal(current[6],'Нет');assert.equal(e.sheets.Мастера[1][6],'Да');assert.ok(!JSON.stringify(e.writes).includes('registration:'))}finally{globalThis.fetch=previous;e.close()}});

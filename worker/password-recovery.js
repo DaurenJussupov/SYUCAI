@@ -43,7 +43,7 @@ export async function handlePasswordRecovery(r,e,{body,limit,password,text,now=D
   // Atomically reserve one of five guesses, including parallel requests.
   const attempt=await e.DB.prepare('UPDATE password_recoveries SET attempts=attempts+1 WHERE id=? AND registration_type=? AND expires>? AND completed_at IS NULL AND verified_at IS NULL AND attempts<5 RETURNING code_hash,account_id').bind(id,type,now).first();
   const digest=await hash(challenge+':'+data.code);if(!attempt||!equal(digest,attempt.code_hash)||!attempt.account_id)invalid();
-  const grant=random();const claimed=await e.DB.prepare('UPDATE password_recoveries SET verified_at=?,reset_token=?,grant_expires=? WHERE id=? AND registration_type=? AND expires>? AND completed_at IS NULL AND verified_at IS NULL AND EXISTS(SELECT 1 FROM account_registrations g WHERE g.account_id=password_recoveries.account_id AND g.registration_type=password_recoveries.registration_type AND g.password=password_recoveries.password_version) RETURNING account_id').bind(now,await hash(grant),now+600000,id,type,now).first();if(!claimed)invalid();
+  const grant=random();const claimed=await e.DB.prepare('UPDATE password_recoveries SET verified_at=?,reset_token=?,grant_expires=? WHERE id=? AND registration_type=? AND expires>? AND completed_at IS NULL AND verified_at IS NULL AND EXISTS(SELECT 1 FROM account_registrations g WHERE g.account_id=password_recoveries.account_id AND g.registration_type=password_recoveries.registration_type AND g.password=password_recoveries.password_version AND g.deleted_at IS NULL) RETURNING account_id').bind(now,await hash(grant),now+600000,id,type,now).first();if(!claimed)invalid();
   return json({ok:true},200,{'Set-Cookie':resetCookie(r,type,grant)});
  }
  await limit(r,e,'password-recovery-complete:'+type,15);
@@ -54,7 +54,7 @@ export async function handlePasswordRecovery(r,e,{body,limit,password,text,now=D
  // so a replay or concurrent completion cannot change credentials or end sessions.
  const owned='SELECT account_id FROM password_recoveries WHERE id=? AND completion_id=?';
  const results=await e.DB.batch([
-  e.DB.prepare('UPDATE password_recoveries SET completed_at=?,completion_id=? WHERE id=? AND registration_type=? AND reset_token=? AND grant_expires>? AND verified_at IS NOT NULL AND completed_at IS NULL AND EXISTS(SELECT 1 FROM account_registrations g WHERE g.account_id=password_recoveries.account_id AND g.registration_type=password_recoveries.registration_type AND g.password=password_recoveries.password_version) RETURNING account_id').bind(now,completion,id,type,await hash(grant),now),
+  e.DB.prepare('UPDATE password_recoveries SET completed_at=?,completion_id=? WHERE id=? AND registration_type=? AND reset_token=? AND grant_expires>? AND verified_at IS NOT NULL AND completed_at IS NULL AND EXISTS(SELECT 1 FROM account_registrations g WHERE g.account_id=password_recoveries.account_id AND g.registration_type=password_recoveries.registration_type AND g.password=password_recoveries.password_version AND g.deleted_at IS NULL) RETURNING account_id').bind(now,completion,id,type,await hash(grant),now),
   e.DB.prepare(`UPDATE account_registrations SET password=?,salt=?,email_verified_at=COALESCE(email_verified_at,CURRENT_TIMESTAMP) WHERE account_id IN(${owned}) AND registration_type=?`).bind(digest,salt,id,completion,type),
   e.DB.prepare(`UPDATE accounts SET password=?,salt=? WHERE id IN(${owned}) AND registration_type=?`).bind(digest,salt,id,completion,type),
   e.DB.prepare(`DELETE FROM scoped_sessions WHERE account_id IN(${owned}) AND registration_type=?`).bind(id,completion,type),
@@ -64,6 +64,6 @@ export async function handlePasswordRecovery(r,e,{body,limit,password,text,now=D
  ]);
  const updated=results[0].results?.[0];if(!updated)fail('Подтверждение истекло или уже использовано. Запросите новый код.',400);
  await queueContact(e,updated.account_id);
- const account=await e.DB.prepare('SELECT a.id,a.email,g.registration_type FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE a.id=? AND g.registration_type=?').bind(updated.account_id,type).first();
+ const account=await e.DB.prepare('SELECT a.id,g.email,g.registration_type FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE a.id=? AND g.registration_type=? AND g.deleted_at IS NULL').bind(updated.account_id,type).first();
  const response=await loginSession(r,e,account);response.headers.append('Set-Cookie',resetCookie(r,type,'',0));return response;
 }

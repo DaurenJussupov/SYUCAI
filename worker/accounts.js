@@ -12,20 +12,36 @@ const cookie=(r,type,token,age=604800)=>`${type?'session_'+type:'session'}=${tok
 export async function getUser(r,e,type=requestAccountType(r)){
  const scoped=tokenFor(r,'session_'+type),token=scoped||tokenFor(r,'session');if(!token)return null;
  const from=scoped?'scoped_sessions s JOIN accounts a ON a.id=s.account_id JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=s.registration_type':'sessions s JOIN accounts a ON a.id=s.account_id JOIN account_registrations g ON g.account_id=a.id AND g.registration_type=a.registration_type';
- return e.DB.prepare('SELECT a.id,a.email,g.display_name,g.last_name,g.registration_type,g.role,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,g.email_verified_at,g.email_verification_sent_at,g.application_status,g.application_note,g.rework_since,g.archived_at,g.deleted_at FROM '+from+' WHERE s.token=? AND s.expires>? AND g.registration_type=?').bind(await hash(token),Date.now(),type).first();
+ return e.DB.prepare('SELECT a.id,g.email,g.display_name,g.last_name,g.registration_type,g.role,g.newsletter_opt_in,g.newsletter_consent_at,g.created_at,g.email_verified_at,g.email_verification_sent_at,g.application_status,g.application_note,g.rework_since,g.archived_at,g.deleted_at,(SELECT m.account_id FROM account_registrations m WHERE m.email=g.email COLLATE NOCASE AND m.registration_type=\'master\' AND m.deleted_at IS NULL) linked_master_id FROM '+from+' WHERE s.token=? AND s.expires>? AND g.registration_type=? AND g.deleted_at IS NULL').bind(await hash(token),Date.now(),type).first();
 }
-export async function findRegistration(e,email,type){return e.DB.prepare('SELECT a.id,a.email,g.* FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE a.email=? AND g.registration_type=?').bind(email,type).first()}
+export async function findRegistration(e,email,type){return e.DB.prepare('SELECT a.id,g.* FROM accounts a JOIN account_registrations g ON g.account_id=a.id WHERE g.email=? COLLATE NOCASE AND g.registration_type=? AND g.deleted_at IS NULL').bind(email,type).first()}
 export async function moderatorActor(r,e){
  if(await isAdmin(r,e))return {id:'admin',admin:true};
  const user=await getUser(r,e,'user');if(!user)fail('Войдите в профиль пользователя',401);if(user.role!=='moderator'||!user.email_verified_at)fail('Нет доступа к панели модератора',403);return {...user,admin:false};
 }
 export async function createRegistration(e,{email,password,salt,type,displayName,subscribed,lastName=''}){
- const id=crypto.randomUUID();
- const created=await e.DB.prepare('INSERT INTO accounts(id,email,password,salt,display_name,registration_type,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END) ON CONFLICT(email) DO NOTHING RETURNING id').bind(id,email,password,salt,displayName,type,subscribed,subscribed).first();
- if(created){await e.DB.prepare('UPDATE account_registrations SET last_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE account_id=? AND registration_type=?').bind(lastName,subscribed,subscribed,id,type).run();return {id,email,registration_type:type}};
- const identity=await e.DB.prepare('SELECT id FROM accounts WHERE email=?').bind(email).first();if(!identity)fail('Повторите регистрацию',409);
- try{await e.DB.prepare('INSERT INTO account_registrations(account_id,registration_type,password,salt,display_name,last_name,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END)').bind(identity.id,type,password,salt,displayName,lastName,subscribed,subscribed).run()}catch(error){if(String(error).includes('UNIQUE'))fail('Этот email уже зарегистрирован в этом разделе',409);throw error}
- return {id:identity.id,email,registration_type:type};
+ email=email.trim().toLowerCase();
+ for(let attempt=0;attempt<3;attempt++){
+  if(await findRegistration(e,email,type))fail('Этот email уже зарегистрирован в этом разделе',409);
+  // Reuse a shared identity only if this section has NEVER existed under it.
+  // A retired section receives a fresh ID, isolating its files, reviews and tokens.
+  const candidate=await e.DB.prepare("SELECT a.id FROM accounts a WHERE (a.email=? COLLATE NOCASE OR EXISTS(SELECT 1 FROM account_registrations other WHERE other.account_id=a.id AND other.email=? COLLATE NOCASE AND other.deleted_at IS NULL)) AND NOT EXISTS(SELECT 1 FROM account_registrations used WHERE used.account_id=a.id AND used.registration_type=?) ORDER BY a.created_at,a.id LIMIT 1").bind(email,email,type).first();
+  const id=candidate?.id||crypto.randomUUID();
+  try{
+   if(candidate){
+    await e.DB.prepare('INSERT INTO account_registrations(account_id,registration_type,email,password,salt,display_name,last_name,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END)').bind(id,type,email,password,salt,displayName,lastName,subscribed,subscribed).run();
+   }else{
+    const occupied=await e.DB.prepare('SELECT id FROM accounts WHERE email=?').bind(email).first();
+    // accounts.email is a legacy unique storage key. Only g.email is public/login email.
+    const storageKey=occupied?'registration:'+id:email;
+    await e.DB.batch([
+     e.DB.prepare('INSERT INTO accounts(id,email,password,salt,display_name,registration_type,newsletter_opt_in,newsletter_consent_at) VALUES(?,?,?,?,?,?,?,CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END)').bind(id,storageKey,password,salt,displayName,type,subscribed,subscribed),
+     e.DB.prepare('UPDATE account_registrations SET email=?,last_name=?,newsletter_opt_in=?,newsletter_consent_at=CASE WHEN ?=1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE account_id=? AND registration_type=?').bind(email,lastName,subscribed,subscribed,id,type)
+    ]);
+   }
+   return {id,email,registration_type:type};
+  }catch(error){if(!String(error).includes('UNIQUE'))throw error;if(attempt===2)fail('Этот email уже зарегистрирован в этом разделе',409)}
+ }
 }
 async function clearLegacySession(r,e,type){
  const token=tokenFor(r,'session');if(!token)return false;

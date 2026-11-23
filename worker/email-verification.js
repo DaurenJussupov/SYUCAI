@@ -43,7 +43,7 @@ export async function verifyEmailCode(e,user,code,now=Date.now()){
  if(typeof code!=='string'||!/^\d{6}$/.test(code))invalid();
  const row=await e.DB.prepare('UPDATE email_confirmation_codes SET attempts=attempts+1 WHERE account_id=? AND registration_type=? AND expires>? AND attempts<5 RETURNING nonce,code_hash').bind(user.id,type,now).first();
  if(!row||!equal(await hash(row.nonce+':'+code),row.code_hash))invalid();
- const updated=await e.DB.prepare('UPDATE account_registrations SET email_verified_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND EXISTS(SELECT 1 FROM email_confirmation_codes c WHERE c.account_id=account_registrations.account_id AND c.registration_type=account_registrations.registration_type AND c.nonce=? AND c.expires>?) RETURNING account_id').bind(user.id,type,row.nonce,now).first();if(!updated)invalid();
+ const updated=await e.DB.prepare('UPDATE account_registrations SET email_verified_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND deleted_at IS NULL AND EXISTS(SELECT 1 FROM email_confirmation_codes c WHERE c.account_id=account_registrations.account_id AND c.registration_type=account_registrations.registration_type AND c.nonce=? AND c.expires>?) RETURNING account_id').bind(user.id,type,row.nonce,now).first();if(!updated)invalid();
  await e.DB.batch([e.DB.prepare('DELETE FROM email_confirmation_codes WHERE account_id=? AND registration_type=?').bind(user.id,type),e.DB.prepare('DELETE FROM email_verification_tokens WHERE account_id=? AND registration_type=?').bind(user.id,type)]);await queueContact(e,user.id);return {ok:true,registration_type:type};
 }
 export async function verifyEmail(e,token,now=Date.now()){
@@ -51,7 +51,7 @@ export async function verifyEmail(e,token,now=Date.now()){
  const digest=await hash(token);
  const pending=await e.DB.prepare('SELECT account_id,registration_type FROM email_verification_tokens WHERE token=? AND expires>?').bind(digest,now).first();
  if(!pending)fail('Ссылка истекла или уже использована. Запросите новое письмо в кабинете.');
- const updated=await e.DB.prepare('UPDATE account_registrations SET email_verified_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND EXISTS(SELECT 1 FROM email_verification_tokens WHERE token=? AND expires>?) RETURNING account_id').bind(pending.account_id,pending.registration_type,digest,now).first();
+ const updated=await e.DB.prepare('UPDATE account_registrations SET email_verified_at=CURRENT_TIMESTAMP WHERE account_id=? AND registration_type=? AND email_verified_at IS NULL AND deleted_at IS NULL AND EXISTS(SELECT 1 FROM email_verification_tokens WHERE token=? AND expires>?) RETURNING account_id').bind(pending.account_id,pending.registration_type,digest,now).first();
  if(!updated)fail('Ссылка истекла или уже использована. Запросите новое письмо в кабинете.');
  await e.DB.prepare('DELETE FROM email_verification_tokens WHERE account_id=? AND registration_type=?').bind(updated.account_id,pending.registration_type).run();await e.DB.prepare('DELETE FROM email_confirmation_codes WHERE account_id=? AND registration_type=?').bind(updated.account_id,pending.registration_type).run();await queueContact(e,pending.account_id);return {ok:true,registration_type:pending.registration_type};
 }
