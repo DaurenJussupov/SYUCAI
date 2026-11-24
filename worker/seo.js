@@ -13,6 +13,8 @@ async function dictionary(e,origin,state,locale){if(locale==='ru')return {};if(!
 function translateMarkup(html,t){const root=parseFragment(html);function walk(node,skip=false){skip ||= node.attrs?.some(a=>a.name==='data-i18n-skip')||['script','style','code'].includes(node.tagName);if(node.nodeName==='#text'&&!skip)node.value=t(node.value);for(const attr of node.attrs||[])if(!skip&&['placeholder','title','aria-label'].includes(attr.name))attr.value=t(attr.value);for(const child of node.childNodes||[])walk(child,skip)}walk(root);return serialize(root)}
 export async function handleSeo(r,e){
  const url=new URL(r.url),{locale:prefix,path}=splitLocale(url.pathname),locale=prefix||'ru';if(!['GET','HEAD'].includes(r.method))return null;
+ // Search Console requests the exact .html URL; Assets otherwise redirects to a pretty URL.
+ if(url.pathname==='/google10d8a88d8f71f1bd.html')return e.ASSETS.fetch(new Request(new URL('/google10d8a88d8f71f1bd',url),{method:r.method}));
  if(url.pathname==='/robots.txt')return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nAllow: /api/files/\nAllow: /api/blog-images/\nDisallow: /admin\nDisallow: /moderator\nDisallow: /account\nDisallow: /cabinet\nDisallow: /verify-email\nDisallow: /results\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`,{headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=3600'}});
  if(!publicRoute(path)&&!['/sitemap.xml','/llms.txt'].includes(path))return null;
  const state=await assets(e,url.origin),ready=readyLanguages(state.manifest,path),available=ready.some(l=>l.code===locale);
