@@ -1,3 +1,4 @@
+import {blogSources,blogTranslationMessages} from '../shared/blog-translations.js';
 import {parseFragment} from 'parse5';
 import {seoPages,guideIntro,guideQuestions,guideLinks} from '../shared/seo-content.js';
 import {renderAbout} from '../src/about.js';
@@ -10,6 +11,7 @@ export function seoTranslationCoverage(source,translations){
  definitions['/'].push('Введите дату рождения','ДД.ММ.ГГГГ','Введите название / имя','Имя латиницей','Рассчитать','Можно заполнить одно или оба поля.');
  definitions['/guide'].push(guideIntro,...guideQuestions.flat(),...guideLinks.map(([,label])=>label));
  definitions['/about'].push(...textKeys(renderAbout));definitions['/privacy'].push(...textKeys(renderPrivacy));definitions['/blog'].push('Читать далее');
+ for(const post of blogSources)definitions['/blog/'+post.slug]=[...common,...blogTranslationMessages(post)];
  definitions['/masters/:id']=[...common,'Мастер SYUCAI','Квалификация','О мастере'];
  // Private auth/moderation strings must not determine public page indexing.
  return Object.fromEntries(Object.entries(definitions).map(([path,values])=>{const keys=[...new Set(values)].filter(k=>managed.has(k)&&/[А-Яа-яЁё]/.test(k));return [path,keys.length>0&&keys.every(k=>typeof translations[k]==='string'&&translations[k].trim())]}));

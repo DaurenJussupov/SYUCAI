@@ -1,7 +1,7 @@
 // Minimal article formatting; user-supplied HTML always remains literal text.
-export function renderBlogContent(content,esc){
+export function renderBlogContent(content,esc,t=value=>value){
  const inline=text=>text.split(/(https?:\/\/[^\s<>"']+)/g).map(part=>{
-  if(!/^https?:\/\//.test(part))return esc(part).replaceAll('\n','<br>');
+  if(!/^https?:\/\//.test(part))return esc(t(part)).replaceAll('\n','<br>');
   const url=part.replace(/[.,;:!?\)\]]+$/,'');
   return `<a class="text-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>${esc(part.slice(url.length))}`;
  }).join('');

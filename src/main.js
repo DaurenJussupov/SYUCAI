@@ -15,7 +15,7 @@ import {membershipNotice,mountPromotionPanel} from './account-benefits.js';
 import {renderAbout} from './about.js';
 import {renderAdmin} from './admin.js';
 import {initializeAnalytics,analyticsPage,track} from './analytics.js';
-import {renderCalendar, leaveCalendar} from './calendar.js';
+import {renderCalendar, mountCalendarResults, leaveCalendar} from './calendar.js';
 import {mountLanguagePicker, initializeTranslations, translateDocument, translateText, translateGeneratedValue, currentLanguage,setLanguage} from './i18n/runtime.js';
 import '@fontsource-variable/manrope';
 import './style.css';
@@ -45,11 +45,11 @@ function calendarBirthIsValid(){
  input?.focus();
  return false;
 }
-function go(path){
- if(basePath(new URL(path,location.href).pathname)==='/calendar'){if(!calendarBirthIsValid())return;track('calendar_open')}
+function go(path,{allowBlankCalendar=false}={}){
+ if(basePath(new URL(path,location.href).pathname)==='/calendar'){if(!allowBlankCalendar&&!calendarBirthIsValid())return;track('calendar_open')}
  path=localePath(path,currentLanguage());history.pushState({},'',path);render();window.scrollTo({top:0,behavior:'instant'});
 }
-document.addEventListener('click',e=>{const a=e.target.closest('a[data-link]');if(a&&!e.metaKey&&!e.ctrlKey){e.preventDefault();go(a.getAttribute('href'))}});
+document.addEventListener('click',e=>{const a=e.target.closest('a[data-link]');if(a&&!e.metaKey&&!e.ctrlKey){e.preventDefault();go(a.getAttribute('href'),{allowBlankCalendar:a.hasAttribute('data-calendar-entry')})}});
 window.addEventListener('popstate',async()=>{if(publicRoute(location.pathname)){const desired=splitLocale(location.pathname).locale||'ru';if(desired!==currentLanguage())await setLanguage(desired)}render()});
 const link=(path,text,cls='')=>`<a data-link href="${localePath(path,currentLanguage())}" class="${cls}">${text}</a>`;
 function setMenu(open, restoreFocus = false) {
@@ -132,12 +132,13 @@ function results() {
   if (values.name) name = calculateName(values.name);
  } catch { return home(); }
  if (!birth && !name) return home();
- const daySummary = birth ? `<section class="day-summary" aria-label="Личный и общий день"><div><span>Личный день</span><strong data-day-value="personal">${birth.personalDay.value}</strong></div><div><span>Общий день</span><strong data-day-value="general">${birth.generalDay.value}</strong></div>${link('/calendar','МОЙ КАЛЕНДАРЬ','button secondary')}</section>` : '';
+ const daySummary = birth ? '<section class="results-calendar" aria-label="Мой календарь"><h2>МОЙ КАЛЕНДАРЬ</h2><div id="calendar-panel" hidden></div></section>' : '';
  const consciousness = birth ? resultCard(birth.consciousness.value, 'Число сознания', birth.consciousness.data.name, `<p class="calc">${esc(birth.consciousness.calc)}</p><p class="intro">Рождённые ${esc(birth.consciousness.data.days)} числа</p><div class="qualities"><p><b>В плюсе</b>${esc(birth.consciousness.data.plus)}</p><p><b>В минусе</b>${esc(birth.consciousness.data.minus)}</p></div>${sections(birth.consciousness.data.sections)}`, 'consciousness') : '';
  const mission = birth ? resultCard(birth.mission.value, 'Число миссии', birth.mission.data.name, `<p class="calc">${esc(birth.mission.calc)}</p><p class="intro">${esc(birth.mission.data.text)}</p>${sections(birth.mission.data.sections)}`, 'mission') : '';
  const nameCard = name ? resultCard(name.value, 'Число имени', name.data.title, `<p class="calc">${esc(name.calc)}</p><div class="letter-row">${name.letters.map(([c,n]) => `<span>${c}<small>${n}</small></span>`).join('')}</div><p class="intro">${esc(name.data.summary)}</p><div class="tags">${name.data.keys.map(k => `<span>${esc(k)}</span>`).join('')}</div>${sections(name.data.sections)}<details><summary>Классическая трактовка <span>+</span></summary><p>Планета: ${esc(name.data.classic.planet)}. Дни: ${esc(name.data.classic.days)}.</p><p>В плюсе: ${esc(name.data.classic.plus)}</p><p>В минусе: ${esc(name.data.classic.minus)}</p><p>${esc(name.data.classic.mission)}</p></details>`, 'name') : '';
  shell(`<div class="page-head"><button class="text-button" id="edit">← Изменить данные</button><h1>Результаты расчёта</h1><p>${esc([values.name,values.date].filter(Boolean).join(' · '))}</p></div><section class="energy-results" aria-label="${birth ? 'Ваши энергии' : 'Число имени'}">${birth ? '<div class="section-heading"><h2>Ваши энергии</h2></div>' : ''}<div class="result-grid energy-grid ${birth && name ? 'three' : ''}">${consciousness}${mission}${nameCard}</div></section>${daySummary}`, 'page results');
  document.querySelector('#edit').onclick = () => go('/');
+ if(birth)mountCalendarResults(values.date);
 }
 
 function about(){renderAbout({shell,link})}

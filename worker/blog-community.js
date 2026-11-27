@@ -1,10 +1,11 @@
+import {blogSource} from '../shared/blog-translations.js';
 import {json,isAdmin,audit} from './admin-auth.js';
 import {getUser,moderatorActor} from './accounts.js';
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status})};
 const summary="SELECT b.*,(SELECT COUNT(*) FROM blog_likes l WHERE l.post_id=b.id) likes_count,(SELECT COUNT(*) FROM blog_comments c WHERE c.post_id=b.id AND c.deleted_at IS NULL) comments_count,(SELECT id FROM blog_images i WHERE i.post_id=b.id) image_id FROM blog_posts b";
 export async function publicBlog(e,slug){
- if(!slug)return {posts:(await e.DB.prepare(summary+" WHERE b.status='published' ORDER BY b.published_at DESC LIMIT 100").all()).results.map(({author_id,content,status,created_at,updated_at,...post})=>post)};
- const post=await e.DB.prepare(summary+" WHERE b.slug=? AND b.status='published'").bind(slug).first();if(!post)fail('Новость не найдена',404);delete post.author_id;delete post.status;return post;
+ if(!slug)return {posts:(await e.DB.prepare(summary+" WHERE b.status='published' ORDER BY b.published_at DESC LIMIT 100").all()).results.map(row=>{const translationSource=blogSource(row)?row.slug:null;const {author_id,content,status,created_at,...post}=row;return {...post,translationSource}})};
+ const post=await e.DB.prepare(summary+" WHERE b.slug=? AND b.status='published'").bind(slug).first();if(!post)fail('Новость не найдена',404);post.translationSource=blogSource(post)?post.slug:null;delete post.author_id;delete post.status;return post;
 }
 export async function editorBlog(e,actor){return {posts:(await e.DB.prepare(summary+' WHERE ?=1 OR b.author_id=? ORDER BY b.updated_at DESC LIMIT 100').bind(actor.admin?1:0,actor.id).all()).results}}
 const sameEmailUsers="SELECT peer.account_id FROM account_registrations subject JOIN account_registrations peer ON peer.email=subject.email COLLATE NOCASE AND peer.registration_type='user' WHERE subject.account_id=? AND subject.registration_type='user'";

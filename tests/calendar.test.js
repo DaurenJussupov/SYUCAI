@@ -2,11 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {calendarDays,calendarMonth,calculateCalendarDay} from '../src/calendar-calculations.js';
+import {calendarDays,calendarYears,calendarMonths,calendarMonth,calculateCalendarDay} from '../src/calendar-calculations.js';
 import {calculateBirth} from '../src/calculations.js';
 test('calendar interpretations are exactly the supplied artifact',()=>{
  const prefix=readFileSync('references/artifacts/calendar.html','utf8').split('<script>')[1].split('var root =')[0].replace('(function () {','');
- assert.deepEqual(calendarDays,JSON.parse(vm.runInNewContext(prefix+';JSON.stringify(DAYS)')));
+ const data=JSON.parse(vm.runInNewContext(prefix+';JSON.stringify({days:DAYS,years:YEARS,months:MONTHS_D})'));
+ assert.deepEqual(calendarDays,data.days);assert.deepEqual(calendarYears,data.years);assert.deepEqual(calendarMonths,data.months);
 });
 test('month lengths, Monday-first offsets, invalid input and today summary agree',()=>{
  const now=new Date(2026,10,9,12),value='24.09.1987';
@@ -41,9 +42,19 @@ test('calendar values and advice agree with original HTML on selected past and f
  const now=new Date(2026,10,9,12);
  for(const birth of ['24.09.1987','29.02.2000','01.01.1900'])for(const selected of [new Date(2024,1,1),new Date(2024,1,29),new Date(2026,11,31),new Date(2027,0,1)]){
   const original=artifactResult(birth,selected,now),actual=calculateCalendarDay(birth,selected,now);
-  for(const [kind,prefix] of [['personal','#sd-p'],['general','#sd-g']]){
+  for(const [kind,prefix] of [['personal','#sd-p'],['general','#sd-g'],['year','#sd-y'],['month','#sd-m']]){
    assert.equal(actual[kind].value,Number(original(prefix+'-num')));
-   for(const [property,suffix] of [['title','-name'],['summary','-sum'],['todo','-todo'],['avoid','-avoid']])assert.equal(actual[kind].data[property],original(prefix+suffix));
+   for(const [property,suffix] of [['title','-name'],['summary','-sum'],...(kind==='month'?[['focus','-focus']]:[['todo','-todo'],['avoid','-avoid']])])assert.equal(actual[kind].data[property],original(prefix+suffix));
   }
  }
+});
+
+test('personal year and month cover all nine cycles and follow selected calendar periods, not the birth year',()=>{
+ const now=new Date(2026,10,27,12),seenYears=new Set(),seenMonths=new Set();
+ for(let year=2020;year<=2028;year++)for(let month=0;month<12;month++){
+  const a=calculateCalendarDay('24.09.1987',new Date(year,month,1),now),b=calculateCalendarDay('24.09.2000',new Date(year,month,28),now);
+  assert.equal(a.year.value,b.year.value);assert.equal(a.month.value,b.month.value);assert.equal(a.year.value,a.personalYear);assert.equal(a.month.value,a.personalMonth);
+  assert.ok(a.year.data.todo&&a.year.data.avoid&&a.month.data.focus);seenYears.add(a.year.value);seenMonths.add(a.month.value);
+ }
+ assert.equal(seenYears.size,9);assert.equal(seenMonths.size,9);
 });

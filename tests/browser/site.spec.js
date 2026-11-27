@@ -9,7 +9,7 @@ test('minimal home, Latin validation, exact calculations and responsive navigati
  await page.goto('/');await expect(page.locator('main input')).toHaveCount(2);
  await page.locator('#name').fill('Анна');await expect(page.locator('#name-error')).toContainText('Use Latin letters');
  await page.locator('#birth').fill('24091987');await page.locator('#name').fill('Anna');await page.clock.runFor(1500);await expect(page).toHaveURL(origin+'/');await page.getByRole('button',{name:'Рассчитать',exact:true}).click();await expect(page).toHaveURL(/\/results$/);
- await expect(page.locator('.day-summary strong')).toHaveText(['9','3']);
+ await expect(page.locator('[data-calendar-result] .number')).toHaveText(['9','3','7','9']);
  await expect(page.locator('.day-results')).toHaveCount(0);
  await expect(page.locator('.energy-grid .number')).toHaveText(['6','4','3']);
  await page.getByRole('link',{name:/Мастер SYUCAI в Вашем городе/}).click();await page.locator('#search-city').fill('Кызылорда, Казахстан');await page.getByRole('button',{name:'Найти мастера'}).click();await expect(page.locator('#master-list')).toContainText('пока нет опубликованных анкет');
@@ -58,11 +58,11 @@ for (const mode of ['birth-only', 'name-only']) {
   await page.getByRole('button',{name:'Рассчитать',exact:true}).click();
   await expect(page).toHaveURL(/\/results$/);
   if (mode==='birth-only') {
-   await expect(page.locator('.number')).toHaveText(['6','4']);
-   await expect(page.locator('.day-summary strong')).toHaveText(['9','3']);
+   await expect(page.locator('.energy-grid .number')).toHaveText(['6','4']);
+   await expect(page.locator('[data-calendar-result] .number')).toHaveText(['9','3','7','9']);
    await expect(page.locator('[data-result="name"]')).toHaveCount(0);
-   await expect(page.getByRole('heading',{name:'Что делать'})).toHaveCount(0);
-   await expect(page.getByRole('heading',{name:'Чего избегать'})).toHaveCount(0);
+   await expect(page.locator('[data-calendar-result]')).toHaveCount(4);
+   await expect(page.locator('[data-calendar-result=month] .day-guidance')).toContainText('Фокус месяца');
   } else {
    await expect(page.locator('.number')).toHaveText(['3']);
    await expect(page.locator('.day-summary')).toHaveCount(0);

@@ -14,6 +14,7 @@ const patterns=source.strings.filter(s=>/\{\d+\}/.test(s)).map(message=>{
  return {message,slots,regex:new RegExp(pattern)};
 }).sort((a,b)=>b.message.length-a.message.length);
 export const currentLanguage=()=>locale;
+export const hasTranslation=(key,language=locale)=>language==='ru'||typeof catalogs.get(language)?.[key]==='string';
 export const languageReady=code=>code==='ru'||manifest?.languages?.[code]?.status==='ready'||Object.keys(catalogs.get(code)||{}).length===source.strings.length;
 export const seoReady=(code,path)=>manifest?seoLanguageReady(manifest,code,path):languageReady(code);
 export const readyLocaleCodes=(path='/')=>manifest?readyLanguages(manifest,path).map(l=>l.code):languages.filter(l=>languageReady(l.code)).map(l=>l.code);
