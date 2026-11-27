@@ -37,9 +37,6 @@ function renderPanel(){
  for(const cell of panel.querySelectorAll('[data-date]'))cell.onclick=()=>{track('calendar_day');const [y,m,d]=cell.dataset.date.split('-').map(Number);state.selected=new Date(y,m-1,d);renderPanel();document.querySelector(`[data-date="${cell.dataset.date}"]`)?.focus()};
  translateDocument();
 }
-export function mountCalendarResults(birthValue){
- active=true;state.birth=birthValue;if(!state.selected){const now=new Date();state.selected=now;state.year=now.getFullYear();state.month=now.getMonth()+1}renderPanel();
-}
 export function renderCalendar({shell,birthValue,onBirthChange}){
  active=true;
  shell(`<div class="page-head"><h1>МОЙ КАЛЕНДАРЬ</h1></div><form id="calendar-form" class="calendar-form" novalidate><label class="form-label" for="calendar-birth">Введите дату рождения</label><div class="calendar-form-row"><input id="calendar-birth" class="control" inputmode="numeric" autocomplete="bday" placeholder="ДД.ММ.ГГГГ" maxlength="10" value="${escape(birthValue)}" aria-describedby="calendar-error"></div><p id="calendar-error" class="error" role="alert"></p></form><div id="calendar-panel" hidden></div>`, 'page calendar-page');

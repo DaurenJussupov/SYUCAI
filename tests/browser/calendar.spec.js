@@ -59,8 +59,15 @@ test('menu calendar link without a stored birth date opens the home form with an
  await expect(page).toHaveURL('http://127.0.0.1:8787/');await expect(page.locator('#birth-error')).toHaveText('введите дату рождения');await expect(page.locator('#birth')).toBeFocused();
 });
 
-test('year and month guidance follows the date picker on calendar and calculation results',async({page})=>{
+test('calculation results show compact values and open the full calendar with the birth date',async({page})=>{
  await today(page);await page.goto('/');await page.locator('#birth').fill('24091987');await page.getByRole('button',{name:'Рассчитать',exact:true}).click();
+ await expect(page.locator('.day-summary [data-day-value]')).toHaveText(['9','3','7','9']);
+ expect(await page.locator('[data-day-value]').evaluateAll(nodes=>nodes.map(n=>n.dataset.dayValue))).toEqual(['personal','general','year','month']);
+ await expect(page.locator('[data-calendar-result], #calendar-panel, .calendar-cell')).toHaveCount(0);
+ await expect(page.locator('.day-summary-details p')).toHaveText('Подробнее в Моём календаре');
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('.day-summary').getByRole('link',{name:'МОЙ КАЛЕНДАРЬ',exact:true}).click();await expect(page).toHaveURL(/\/calendar$/);
+ await expect(page.locator('#calendar-birth')).toHaveValue('24.09.1987');
  expect(await page.locator('[data-calendar-result]').evaluateAll(nodes=>nodes.map(n=>n.dataset.calendarResult))).toEqual(['personal','general','year','month']);
  await expect(page.locator('[data-calendar-result] .number')).toHaveText(['9','3','7','9']);await expect(page.locator('[data-calendar-result=year] .intro')).not.toBeEmpty();await expect(page.locator('[data-calendar-result=month] .day-guidance')).toContainText('Фокус месяца');
  expect(await page.locator('#calendar-month').evaluate(el=>!!(el.compareDocumentPosition(document.querySelector('[data-calendar-result=personal]'))&Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
